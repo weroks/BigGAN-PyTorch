@@ -8,6 +8,8 @@ import os
 
 import utils
 import losses
+import random
+import numpy as np
 
 
 # Dummy training function for debugging
@@ -107,7 +109,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                        'copy%d' %  state_dict['save_num'],
                        G_ema if config['ema'] else None)
     state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
-    
+  
   # Use EMA G for samples or non-EMA?
   which_G = G_ema if config['ema'] and config['use_ema'] else G
   
@@ -128,7 +130,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
   image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 
                                                   experiment_name,
                                                   state_dict['itr'])
-  torchvision.utils.save_image(fixed_Gz.float().cpu(), image_filename,
+  torchvision.utils.save_image(torch.from_numpy(fixed_Gz.float().cpu().numpy()), image_filename,
                              nrow=int(fixed_Gz.shape[0] **0.5), normalize=True)
   # For now, every time we save, also save sample sheets
   utils.sample_sheet(which_G,
@@ -151,7 +153,6 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                        folder_number=state_dict['itr'],
                        sheet_number=0,
                        fix_z=fix_z, fix_y=fix_y, device='cuda')
-
 
   
 ''' This function runs the inception metrics code, checks if the results

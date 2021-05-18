@@ -17,6 +17,7 @@ import json
 import pickle
 from argparse import ArgumentParser
 import animal_hash
+import random
 
 import torch
 import torch.nn as nn
@@ -26,6 +27,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import datasets as dset
+
 
 def prepare_parser():
   usage = 'Parser for all scripts.'
@@ -405,31 +407,41 @@ dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder,
              'I128': dset.ImageFolder, 'I256': dset.ImageFolder,
              'I32_hdf5': dset.ILSVRC_HDF5, 'I64_hdf5': dset.ILSVRC_HDF5, 
              'I128_hdf5': dset.ILSVRC_HDF5, 'I256_hdf5': dset.ILSVRC_HDF5,
-             'C10': dset.CIFAR10, 'C100': dset.CIFAR100}
+             'C10': dset.CIFAR10, 'C100': dset.CIFAR100,
+             'ES128': dset.ImageFolder, 'ES128_hdf5': dset.ILSVRC_HDF5,
+             'E256': dset.ImageFolder, 'E256_hdf5': dset.ILSVRC_HDF5}
 imsize_dict = {'I32': 32, 'I32_hdf5': 32,
                'I64': 64, 'I64_hdf5': 64,
                'I128': 128, 'I128_hdf5': 128,
                'I256': 256, 'I256_hdf5': 256,
-               'C10': 32, 'C100': 32}
+               'C10': 32, 'C100': 32,
+               'ES128': 128, 'ES128_hdf5': 128,
+               'E256': 256, 'E256_hdf5': 256}
 root_dict = {'I32': 'ImageNet', 'I32_hdf5': 'ILSVRC32.hdf5',
              'I64': 'ImageNet', 'I64_hdf5': 'ILSVRC64.hdf5',
              'I128': 'ImageNet', 'I128_hdf5': 'ILSVRC128.hdf5',
              'I256': 'ImageNet', 'I256_hdf5': 'ILSVRC256.hdf5',
-             'C10': 'cifar', 'C100': 'cifar'}
+             'C10': 'cifar', 'C100': 'cifar',
+             'ES128': 'train', 'ES128_hdf5': 'ILSVRC128.hdf5',
+             'E256': 'ecoset', 'E256_hdf5': 'ILSVRC256.hdf5'}
 nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'I64': 1000, 'I64_hdf5': 1000,
                'I128': 1000, 'I128_hdf5': 1000,
                'I256': 1000, 'I256_hdf5': 1000,
-               'C10': 10, 'C100': 100}
+               'C10': 10, 'C100': 100,
+               'ES128': 3, 'ES128_hdf5': 3,
+               'E256': 565, 'E256_hdf5': 565}
 # Number of classes to put per sample sheet               
 classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I64': 50, 'I64_hdf5': 50,
                           'I128': 20, 'I128_hdf5': 20,
                           'I256': 20, 'I256_hdf5': 20,
-                          'C10': 10, 'C100': 100}
+                          'C10': 10, 'C100': 100,
+                          'ES128': 3, 'ES128_hdf5': 3,
+                          'E256': 20, 'E256_hdf5': 20}
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
-                   'ir': nn.ReLU(inplace=True),}
+                   'ir': nn.ReLU(inplace=True)}
 
 class CenterCropLongEdge(object):
   """Crops the given PIL Image on the long edge.
@@ -568,27 +580,42 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   # Prepare loader; the loaders list is for forward compatibility with
   # using validation / test splits.
   loaders = []   
+  random.seed(0)
   if use_multiepoch_sampler:
     print('Using multiepoch sampler from start_itr %d...' % start_itr)
     loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
     sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
     train_loader = DataLoader(train_set, batch_size=batch_size,
-                              sampler=sampler, **loader_kwargs)
+                              sampler=sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
   else:
     loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
                      'drop_last': drop_last} # Default, drop last incomplete batch
     train_loader = DataLoader(train_set, batch_size=batch_size,
-                              shuffle=shuffle, **loader_kwargs)
+                              shuffle=shuffle, worker_init_fn=np.random.seed(0), **loader_kwargs)
   loaders.append(train_loader)
   return loaders
 
 
 # Utility file to seed rngs
 def seed_rng(seed):
+  # next line onlyworks for pytorch 1.8
+  # torch.use_deterministic_algorithms(d=True)
+
+  np.random.seed(seed)
+  random.seed(seed)
+  torch.manual_seed(seed)
+  torch.cuda.manual_seed(seed)
+  torch.cuda.manual_seed_all(seed)
+
+  torch.backends.cudnn.enabled = False
+  torch.backends.cudnn.benchmark = False
+  torch.backends.cudnn.deterministic = True
+
+# Original seed rng function
+def seed_rng_2(seed):
   torch.manual_seed(seed)
   torch.cuda.manual_seed(seed)
   np.random.seed(seed)
-
 
 # Utility to peg all roots to a base root
 # If a base root folder is provided, peg all other root folders to it.
@@ -707,6 +734,37 @@ def save_weights(G, D, state_dict, weights_root, experiment_name,
     torch.save(G_ema.state_dict(), 
                 '%s/%s.pth' % (root, join_strings('_', ['G_ema', name_suffix])))
 
+# Alternative for saving weights to avoid Memory Error
+def save_weights_alternative(G, D, state_dict, weights_root, experiment_name, 
+                         name_suffix=None, G_ema=None):
+  root = '/'.join([weights_root, experiment_name])
+  if not os.path.exists(root):
+    os.mkdir(root)
+  if name_suffix:
+    print('Saving weights to %s/%s...' % (root, name_suffix))
+  else:
+    print('Saving weights to %s...' % root)
+  
+  for key in G.state_dict():
+    torch.save(G.state_dict()[key].detach().cpu(),
+            '%s/%s.pth' % (root, join_strings('_', ['G', key, name_suffix])))
+  
+  torch.save(G.optim.state_dict(),
+          '%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix])))
+  
+  for key in D.state_dict():
+    torch.save(D.state_dict()[key].detach().cpu(),
+            '%s/%s.pth' % (root, join_strings('_', ['D', key, name_suffix])))
+  
+  torch.save(D.optim.state_dict(),
+          '%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix])))
+  torch.save(state_dict,
+          '%s/%s.pth' % (root, join_strings('_', ['state_dict', name_suffix])))
+  
+  if G_ema is not None:
+    for key in G_ema.state_dict():
+      torch.save(G_ema.state_dict()[key].detach().cpu(),
+              '%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
 
 # Load a model's weights, optimizer, and the state_dict
 def load_weights(G, D, state_dict, weights_root, experiment_name, 
@@ -900,6 +958,7 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
     # This line should properly unroll the images
     out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], 
                                        ims[0].shape[3]).data.float().cpu()
+    out_ims = torch.from_numpy(out_ims.numpy())
     # The path for the samples
     image_filename = '%s/%s/%d/samples%d.jpg' % (samples_root, experiment_name, 
                                                  folder_number, i)
