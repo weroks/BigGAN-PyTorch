@@ -15,6 +15,12 @@ from torchvision.utils import save_image
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
+from PIL import Image
+Image.MAX_IMAGE_PIXELS = 10000000000
+
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+
 import utils
 
 def prepare_parser():
