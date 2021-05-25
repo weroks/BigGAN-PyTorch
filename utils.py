@@ -409,28 +409,32 @@ dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder,
              'I128_hdf5': dset.ILSVRC_HDF5, 'I256_hdf5': dset.ILSVRC_HDF5,
              'C10': dset.CIFAR10, 'C100': dset.CIFAR100,
              'ES128': dset.ImageFolder, 'ES128_hdf5': dset.ILSVRC_HDF5,
-             'E256': dset.ImageFolder, 'E256_hdf5': dset.ILSVRC_HDF5}
+             'E256': dset.ImageFolder, 'E256_hdf5': dset.ILSVRC_HDF5,
+             'small_E256_hdf5': dset.ILSVRC_HDF5}
 imsize_dict = {'I32': 32, 'I32_hdf5': 32,
                'I64': 64, 'I64_hdf5': 64,
                'I128': 128, 'I128_hdf5': 128,
                'I256': 256, 'I256_hdf5': 256,
                'C10': 32, 'C100': 32,
                'ES128': 128, 'ES128_hdf5': 128,
-               'E256': 256, 'E256_hdf5': 256}
+               'E256': 256, 'E256_hdf5': 256,
+               'small_E256_hdf5': 256}
 root_dict = {'I32': 'ImageNet', 'I32_hdf5': 'ILSVRC32.hdf5',
              'I64': 'ImageNet', 'I64_hdf5': 'ILSVRC64.hdf5',
              'I128': 'ImageNet', 'I128_hdf5': 'ILSVRC128.hdf5',
              'I256': 'ImageNet', 'I256_hdf5': 'ILSVRC256.hdf5',
              'C10': 'cifar', 'C100': 'cifar',
              'ES128': 'train', 'ES128_hdf5': 'ILSVRC128.hdf5',
-             'E256': 'ecoset', 'E256_hdf5': 'ecoset256.hdf5'}
+             'E256': 'ecoset', 'E256_hdf5': 'E256.hdf5',
+             'small_E256_hdf5': 'small_E256.hdf5'}
 nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'I64': 1000, 'I64_hdf5': 1000,
                'I128': 1000, 'I128_hdf5': 1000,
                'I256': 1000, 'I256_hdf5': 1000,
                'C10': 10, 'C100': 100,
                'ES128': 3, 'ES128_hdf5': 3,
-               'E256': 565, 'E256_hdf5': 565}
+               'E256': 565, 'E256_hdf5': 565,
+               'small_E256_hdf5': 565}
 # Number of classes to put per sample sheet               
 classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I64': 50, 'I64_hdf5': 50,
@@ -438,7 +442,8 @@ classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I256': 20, 'I256_hdf5': 20,
                           'C10': 10, 'C100': 100,
                           'ES128': 3, 'ES128_hdf5': 3,
-                          'E256': 20, 'E256_hdf5': 20}
+                          'E256': 20, 'E256_hdf5': 20,
+                          'small_E256_hdf5': 20}
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
                    'ir': nn.ReLU(inplace=True)}
@@ -577,6 +582,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   train_set = which_dataset(root=data_root, transform=train_transform,
                             load_in_mem=load_in_mem, **dataset_kwargs)
 
+  print('len(train_set) = %d' % len(train_set))
   # Prepare loader; the loaders list is for forward compatibility with
   # using validation / test splits.
   loaders = []   
