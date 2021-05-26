@@ -91,6 +91,10 @@ ${JOB_QUEUE}
 # export PYTHONFAULTHANDLER=1
 
 ### Modules and env variables
+case \$(hostname) in
+  cobra01) source cobra.env;;
+  raven01) source raven.env;;
+esac
 source ${PROJ_ROOT}/.env
 # export PROJ_ROOT=${PROJ_ROOT}
 # export DATA_ROOT=${DATA_ROOT}
