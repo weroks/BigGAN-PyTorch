@@ -5,6 +5,8 @@
 DATASET='small_E256'
 BS='34'
 MODE='test'
+NUM_WORKERS='8'
+MONITORING="sys"
 
 # PATHS
 DATA_ROOT="/ptmp/pierocor/datasets/"
@@ -15,16 +17,20 @@ OUTPUT_DIR="${PROJ_ROOT}/tmp/output/"
 
 print_usage() {
   printf "Usage: ./submit.sh
- -m mode (test | long) (10 mins on gpudev vs 3h on gpu1_v100);
+ -m mode (test | long) (10 mins on gpudev vs 3h on gpu1_v100);\
  -d <string> dataset (E256 | small_E256);\
- -b <int> batch size."
+ -b <int> batch size;\
+ -w <int> number of workers for DataLoader;\
+ -t <string> Monitoring tool (sys | usr | pt)"
 }
 
-while getopts ':m:d:b:' flag; do
+while getopts ':m:d:b:w:t:' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     d) DATASET="${OPTARG}" ;;
     b) BS="${OPTARG}" ;;
+    w) NUM_WORKERS="${OPTARG}" ;;
+    t) MONITORING="${OPTARG}" ;;
     *) print_usage
        exit 1 ;;
   esac
@@ -48,7 +54,15 @@ else
   exit 1
 fi
 
-JOB_NAME="${DATASET}_${BS}_${MODE}"
+case $MONITORING in
+  sys) RUN="srun python" ;;
+  usr) RUN="export HPCMD_SLEEP=0; export HPCMD_AWAKE=10; srun hpcmd_slurm python" ;;
+  pt) RUN="srun hpcmd_suspend python -m torch.utils.bottleneck" ;;
+  *) echo "Worng monitoring tool. Available: sys, usr, pt."
+     exit 2 ;;
+esac
+
+JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}"
 
 mkdir -p ${SUBSCRIPTS_DIR}
 mkdir -p ${OUTPUT_DIR}
@@ -73,8 +87,6 @@ ${JOB_QUEUE}
 #SBATCH --threads-per-core=1
 
 ### Debug and Analytics
-export HPCMD_SLEEP=0
-export HPCMD_AWAKE=10
 # export NCCL_DEBUG=INFO
 # export PYTHONFAULTHANDLER=1
 
@@ -83,7 +95,7 @@ source ${PROJ_ROOT}/.env
 # export PROJ_ROOT=${PROJ_ROOT}
 # export DATA_ROOT=${DATA_ROOT}
 
-cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/run.sh.\${SLURM_JOB_ID}
+cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
 
 module list
 
@@ -91,11 +103,11 @@ echo -e "Nodes: \${SLURM_JOB_NUM_NODES} \t NTASK: \${SLURM_NTASKS}"
 echo "\${SLURM_NODELIST}"
 
 # Run the program:
-srun hpcmd_slurm python train.py \\
+${RUN} train.py \\
   --data_root ${DATA_ROOT}\\
 	--num_epochs 1 \\
 	${DATA_ARG}
-	--shuffle  --num_workers 8 --batch_size ${BS} \\
+	--shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
 	--num_G_accumulations 1 --num_D_accumulations 1 \\
 	--num_D_steps 1 --G_lr 1e-4 --D_lr 4e-4 --D_B2 0.999 --G_B2 0.999 \\
 	--G_attn 64 --D_attn 64 \\
