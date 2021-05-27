@@ -36,15 +36,6 @@ while getopts ':m:d:b:w:t:' flag; do
   esac
 done
 
-if [[ ${MODE} == "long" ]]; then
-  JOB_QUEUE=''
-  JOB_TIME='#SBATCH --time=03:00:00'
-else
-  JOB_QUEUE='#SBATCH -p gpudev'
-  JOB_TIME='#SBATCH --time=0:05:00'
-  MODE='test'
-fi
-
 if [[ ${DATASET} == "E256" ]]; then
   DATA_ARG="--dataset E256_hdf5 \\"
 elif [[ ${DATASET} == "small_E256" ]]; then
@@ -67,6 +58,38 @@ JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}"
 mkdir -p ${SUBSCRIPTS_DIR}
 mkdir -p ${OUTPUT_DIR}
 
+case $(hostname) in
+  cobra01)
+    SRC="cobra.env"
+	  GPU="v100"
+    NGPU="2"
+	  CPUS="20"
+	  NTASK_SOCKET="1"
+	  TEST_Q="gpudev"
+	  ;;
+  raven01|raven02)
+    SRC="raven.env"
+    GPU="a100"
+    CPUS="18"
+    NGPU="4"
+	  NTASK_SOCKET="2"
+	  TEST_Q="test"
+    ;;
+  *)
+    echo "Host not recognized. Available: raven01, cobra01."
+    exit 3 ;;
+esac
+
+if [[ ${MODE} == "long" ]]; then
+  JOB_QUEUE=''
+  JOB_TIME='#SBATCH --time=03:00:00'
+else
+  JOB_QUEUE="#SBATCH -p ${TEST_Q}"
+  JOB_TIME='#SBATCH --time=0:10:00'
+  MODE='test'
+fi
+
+
 cat > ${SUBSCRIPTS_DIR}/run.sh << EOF
 #!/bin/bash -l
 #SBATCH -D ./
@@ -76,14 +99,13 @@ cat > ${SUBSCRIPTS_DIR}/run.sh << EOF
 ${JOB_TIME}
 ${JOB_QUEUE}
 # Node feature:
-#SBATCH --exclusive
 #SBATCH --constraint="gpu"
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:${GPU}:${NGPU}
 #SBATCH --mem=0
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-socket=1
+#SBATCH --ntasks-per-socket=${NTASK_SOCKET}
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=${CPUS}
 #SBATCH --threads-per-core=1
 
 ### Debug and Analytics
@@ -91,13 +113,10 @@ ${JOB_QUEUE}
 # export PYTHONFAULTHANDLER=1
 
 ### Modules and env variables
-case \$(hostname) in
-  cobra01) source cobra.env;;
-  raven01) source raven.env;;
-esac
-source ${PROJ_ROOT}/.env
+source ${PROJ_ROOT}/${SRC}
 # export PROJ_ROOT=${PROJ_ROOT}
 # export DATA_ROOT=${DATA_ROOT}
+export CUDA_VISIBLE_DEVICES=0
 
 cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
 
