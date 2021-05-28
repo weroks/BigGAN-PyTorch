@@ -11,25 +11,33 @@ PARALLEL="false"
 ENV_VARS=''
 ADD_ARGS=''
 
-# OTHER VALUES
-TEST_EVERY='120'
-SAVE_EVERY='120'
-EMA_START='200'
+# DEFAULT TRAINING VALUES
+TEST_EVERY='1000'
+SAVE_EVERY='1000'
+EMA_START='20000'
 
 # PATHS
 DATA_ROOT="/ptmp/pierocor/datasets/"
+OUT_ROOT="/ptmp/pierocor/BigGan_out/"
+WEIGHTS_ROOT="${OUT_ROOT}/weights/"
+LOGS_ROOT="${OUT_ROOT}/logs/"
+SAMPLES_ROOT="${OUT_ROOT}/samples/"
 
 PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-SUBSCRIPTS_DIR="${PROJ_ROOT}/tmp/subscripts/" 
-OUTPUT_DIR="${PROJ_ROOT}/tmp/output/"
+SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts/" 
+OUTPUT_DIR="${OUT_ROOT}/output/"
 
+# Create outputs directories
 mkdir -p ${SUBSCRIPTS_DIR}
 mkdir -p ${OUTPUT_DIR}
+mkdir -p ${WEIGHTS_ROOT}
+mkdir -p ${LOGS_ROOT}
+mkdir -p ${SAMPLES_ROOT}
 
 
 print_usage() {
   printf "Usage: ./submit.sh
- -m <string> mode (test | long | huge) (10 mins vs 3h vs 24h);
+ -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
  -d <string> dataset (E256 | small_E256);
  -b <int> batch size;
  -w <int> number of workers for DataLoader;
@@ -118,7 +126,10 @@ case ${MODE} in
     JOB_TIME='#SBATCH --time=03:00:00'
     JOB_NAME_EXT="%j"
     ;;
-  huge)
+  test_arr)
+    TEST_EVERY='120'
+    SAVE_EVERY='120'
+    EMA_START='200'
     N_EPOCHS='3'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=0-00:10:00'
@@ -126,7 +137,20 @@ case ${MODE} in
     JOB_NAME_EXT="%A_%a"
     RESUME_CHECKPOINTS="
 if [ \$SLURM_ARRAY_TASK_ID -ne 0 ]; then
-  RESUME="--resume"
+  RESUME=\"--resume\"
+fi
+"
+    ADD_ARGS="${ADD_ARGS} \${RESUME}"
+    ;;
+  full)
+    N_EPOCHS='100'
+    JOB_QUEUE=''
+    JOB_TIME='#SBATCH --time=1-00:00:00'
+    JOB_ARRAY='#SBATCH --array=0-5%1'
+    JOB_NAME_EXT="%A_%a"
+    RESUME_CHECKPOINTS="
+if [ \$SLURM_ARRAY_TASK_ID -ne 0 ]; then
+  RESUME=\"--resume\"
 fi
 "
     ADD_ARGS="${ADD_ARGS} \${RESUME}"
@@ -163,19 +187,28 @@ ${JOB_ARRAY}
 source ${PROJ_ROOT}/${SRC}
 ${ENV_VARS}
 
-cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
+### store job submit script using a unique id:
+if [ -z "\$SLURM_ARRAY_JOB_ID" ]; then
+  cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
+elif [[ \${SLURM_ARRAY_TASK_ID} -eq 0 ]]; then
+  cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_ARRAY_JOB_ID}_\${SLURM_ARRAY_TASK_ID}.sh
+fi
 
+### print modules and basic SLURM info
 module list
 
 echo -e "Nodes: \${SLURM_JOB_NUM_NODES} \t NTASK: \${SLURM_NTASKS}"
 echo "\${SLURM_NODELIST}"
 
-# Checks done only for job arrays, if not empty
+### RESUME variable defined for job arrays only, if not empty
 ${RESUME_CHECKPOINTS}
 
-# Run the program:
+### Run the program:
 ${RUN} train.py \\
-  --data_root ${DATA_ROOT}\\
+  --data_root ${DATA_ROOT} \\
+  --weights_root ${WEIGHTS_ROOT} \\
+  --logs_root ${LOGS_ROOT} \\
+  --samples_root ${SAMPLES_ROOT} \\
   --num_epochs ${N_EPOCHS} \\
   ${DATA_ARG}
   --shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
@@ -198,4 +231,4 @@ EOF
 
 echo "Submitting job ${JOB_NAME}"
 echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh"
-sbatch ${SUBSCRIPTS_DIR}/run.sh
+# sbatch ${SUBSCRIPTS_DIR}/run.sh
