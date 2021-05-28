@@ -231,4 +231,4 @@ EOF
 
 echo "Submitting job ${JOB_NAME}"
 echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh"
-# sbatch ${SUBSCRIPTS_DIR}/run.sh
+sbatch ${SUBSCRIPTS_DIR}/run.sh
