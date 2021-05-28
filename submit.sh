@@ -12,8 +12,9 @@ ENV_VARS=''
 ADD_ARGS=''
 
 # OTHER VALUES
-TEST_EVERY='150'
-SAVE_EVERY='150'
+TEST_EVERY='120'
+SAVE_EVERY='120'
+EMA_START='200'
 
 # PATHS
 DATA_ROOT="/ptmp/pierocor/datasets/"
@@ -85,19 +86,19 @@ esac
 case $(hostname) in
   cobra01)
     SRC="cobra.env"
-	  GPU="v100"
+    GPU="v100"
     NGPU="2"
-	  CPUS="20"
-	  NTASK_SOCKET="1"
-	  TEST_Q="gpudev"
-	  ;;
+    CPUS="20"
+    NTASK_SOCKET="1"
+    TEST_Q="gpudev"
+    ;;
   raven01|raven02)
     SRC="raven.env"
     GPU="a100"
     CPUS="18"
     NGPU="4"
-	  NTASK_SOCKET="2"
-	  TEST_Q="test"
+    NTASK_SOCKET="2"
+    TEST_Q="test"
     ;;
   *)
     echo "Host not recognized. Available: raven01, cobra01."
@@ -109,25 +110,26 @@ case ${MODE} in
     N_EPOCHS='1'
     JOB_QUEUE="#SBATCH -p ${TEST_Q}"
     JOB_TIME='#SBATCH --time=0:10:00'
-    JOB_NAME="${JOB_NAME}.%j"
+    JOB_NAME_EXT="%j"
     ;;
   long)
     N_EPOCHS='1'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=03:00:00'
-    JOB_NAME="${JOB_NAME}.%j"
+    JOB_NAME_EXT="%j"
     ;;
   huge)
-    N_EPOCHS='100'
+    N_EPOCHS='3'
     JOB_QUEUE=''
-    JOB_TIME='#SBATCH --time=00:15:00'
+    JOB_TIME='#SBATCH --time=0-00:10:00'
     JOB_ARRAY='#SBATCH --array=0-2%1'
-    JOB_NAME="${JOB_NAME}.%A_%a"
+    JOB_NAME_EXT="%A_%a"
     RESUME_CHECKPOINTS="
-if [ $SLURM_ARRAY_TASK_ID -ne 0 ]; then
+if [ \$SLURM_ARRAY_TASK_ID -ne 0 ]; then
   RESUME="--resume"
 fi
 "
+    ADD_ARGS="${ADD_ARGS} \${RESUME}"
     ;;
   *)
     echo "Wrong mode: long, test, huge."
@@ -137,8 +139,8 @@ esac
 cat > ${SUBSCRIPTS_DIR}/run.sh << EOF
 #!/bin/bash -l
 #SBATCH -D ./
-#SBATCH -o ${OUTPUT_DIR}/${JOB_NAME}
-#SBATCH -e ${OUTPUT_DIR}/${JOB_NAME}
+#SBATCH -o ${OUTPUT_DIR}/${JOB_NAME}.${JOB_NAME_EXT}
+#SBATCH -e ${OUTPUT_DIR}/${JOB_NAME}.${JOB_NAME_EXT}
 #SBATCH -J ${JOB_NAME}
 ${JOB_TIME}
 ${JOB_QUEUE}
@@ -174,26 +176,26 @@ ${RESUME_CHECKPOINTS}
 # Run the program:
 ${RUN} train.py \\
   --data_root ${DATA_ROOT}\\
-	--num_epochs ${N_EPOCHS} \\
-	${DATA_ARG}
-	--shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
-	--num_G_accumulations 1 --num_D_accumulations 1 \\
-	--num_D_steps 1 --G_lr 1e-4 --D_lr 4e-4 --D_B2 0.999 --G_B2 0.999 \\
-	--G_attn 64 --D_attn 64 \\
-	--G_nl inplace_relu --D_nl inplace_relu \\
-	--SN_eps 1e-6 --BN_eps 1e-5 --adam_eps 1e-6 \\
-	--G_ortho 0.0 \\
-	--G_shared \\
-	--G_init ortho --D_init ortho \\
-	--hier --dim_z 120 --shared_dim 128 \\
-	--G_eval_mode \\
-	--G_ch 96 --D_ch 96 \\
-	--ema --use_ema --ema_start 20000 \\
-	--test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} --num_best_copies 5 --num_save_copies 2 --seed 0 \\
-	--use_multiepoch_sampler ${ADD_ARGS}
+  --num_epochs ${N_EPOCHS} \\
+  ${DATA_ARG}
+  --shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
+  --num_G_accumulations 1 --num_D_accumulations 1 \\
+  --num_D_steps 1 --G_lr 1e-4 --D_lr 4e-4 --D_B2 0.999 --G_B2 0.999 \\
+  --G_attn 64 --D_attn 64 \\
+  --G_nl inplace_relu --D_nl inplace_relu \\
+  --SN_eps 1e-6 --BN_eps 1e-5 --adam_eps 1e-6 \\
+  --G_ortho 0.0 \\
+  --G_shared \\
+  --G_init ortho --D_init ortho \\
+  --hier --dim_z 120 --shared_dim 128 \\
+  --G_eval_mode \\
+  --G_ch 96 --D_ch 96 \\
+  --ema --use_ema --ema_start ${EMA_START} \\
+  --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} --num_best_copies 5 --num_save_copies 2 --seed 0 \\
+  --use_multiepoch_sampler ${ADD_ARGS}
 
 EOF
 
 echo "Submitting job ${JOB_NAME}"
 echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh"
-# sbatch ${SUBSCRIPTS_DIR}/run.sh
+sbatch ${SUBSCRIPTS_DIR}/run.sh
