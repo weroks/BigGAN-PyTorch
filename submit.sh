@@ -4,9 +4,16 @@
 
 DATASET='small_E256'
 BS='34'
-MODE='test'
+MODE='long'
 NUM_WORKERS='8'
 MONITORING="sys"
+PARALLEL="false"
+ENV_VARS=''
+ADD_ARGS=''
+
+# OTHER VALUES
+TEST_EVERY='150'
+SAVE_EVERY='150'
 
 # PATHS
 DATA_ROOT="/ptmp/pierocor/datasets/"
@@ -15,35 +22,48 @@ PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 SUBSCRIPTS_DIR="${PROJ_ROOT}/tmp/subscripts/" 
 OUTPUT_DIR="${PROJ_ROOT}/tmp/output/"
 
+mkdir -p ${SUBSCRIPTS_DIR}
+mkdir -p ${OUTPUT_DIR}
+
+
 print_usage() {
   printf "Usage: ./submit.sh
- -m mode (test | long) (10 mins on gpudev vs 3h on gpu1_v100);\
- -d <string> dataset (E256 | small_E256);\
- -b <int> batch size;\
- -w <int> number of workers for DataLoader;\
- -t <string> Monitoring tool (sys | usr | pt)"
+ -m <string> mode (test | long | huge) (10 mins vs 3h vs 24h);
+ -d <string> dataset (E256 | small_E256);
+ -b <int> batch size;
+ -w <int> number of workers for DataLoader;
+ -t <string> Monitoring tool (sys | usr | pt);
+ -p Use all GPUs with DataParallel;
+ -r resume from previous checkpoint.
+ "
 }
 
-while getopts ':m:d:b:w:t:' flag; do
+while getopts ':m:d:b:w:t:pr' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     d) DATASET="${OPTARG}" ;;
     b) BS="${OPTARG}" ;;
     w) NUM_WORKERS="${OPTARG}" ;;
     t) MONITORING="${OPTARG}" ;;
+    p) PARALLEL="true" ;;
+    r) ADD_ARGS="${ADD_ARGS} --resume" ;;
     *) print_usage
        exit 1 ;;
   esac
 done
 
-if [[ ${DATASET} == "E256" ]]; then
-  DATA_ARG="--dataset E256_hdf5 \\"
-elif [[ ${DATASET} == "small_E256" ]]; then
-  DATA_ARG="--dataset small_E256_hdf5 --load_in_mem \\"
-else
-  echo "Wrong dataset name"
-  exit 1
-fi
+JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}"
+
+case ${DATASET} in
+  E256)
+    DATA_ARG="--dataset E256_hdf5 \\" ;;
+  small_E256)
+    DATA_ARG="--dataset small_E256_hdf5 --load_in_mem \\" ;;
+  *)
+    echo "Wrong dataset name"
+    exit 1
+    ;;
+esac
 
 case $MONITORING in
   sys) RUN="srun python" ;;
@@ -53,10 +73,14 @@ case $MONITORING in
      exit 2 ;;
 esac
 
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}"
-
-mkdir -p ${SUBSCRIPTS_DIR}
-mkdir -p ${OUTPUT_DIR}
+case $PARALLEL in
+  true)
+    ADD_ARGS="${ADD_ARGS} --parallel"
+    JOB_NAME="${JOB_NAME}_p" ;;
+  false)
+    ENV_VARS="${ENV_VARS}
+export CUDA_VISIBLE_DEVICES=0" ;;
+esac
 
 case $(hostname) in
   cobra01)
@@ -80,24 +104,45 @@ case $(hostname) in
     exit 3 ;;
 esac
 
-if [[ ${MODE} == "long" ]]; then
-  JOB_QUEUE=''
-  JOB_TIME='#SBATCH --time=03:00:00'
-else
-  JOB_QUEUE="#SBATCH -p ${TEST_Q}"
-  JOB_TIME='#SBATCH --time=0:10:00'
-  MODE='test'
+case ${MODE} in
+  test)
+    N_EPOCHS='1'
+    JOB_QUEUE="#SBATCH -p ${TEST_Q}"
+    JOB_TIME='#SBATCH --time=0:10:00'
+    JOB_NAME="${JOB_NAME}.%j"
+    ;;
+  long)
+    N_EPOCHS='1'
+    JOB_QUEUE=''
+    JOB_TIME='#SBATCH --time=03:00:00'
+    JOB_NAME="${JOB_NAME}.%j"
+    ;;
+  huge)
+    N_EPOCHS='100'
+    JOB_QUEUE=''
+    JOB_TIME='#SBATCH --time=00:15:00'
+    JOB_ARRAY='#SBATCH --array=0-2%1'
+    JOB_NAME="${JOB_NAME}.%A_%a"
+    RESUME_CHECKPOINTS="
+if [ $SLURM_ARRAY_TASK_ID -ne 0 ]; then
+  RESUME="--resume"
 fi
+"
+    ;;
+  *)
+    echo "Wrong mode: long, test, huge."
+esac
 
 
 cat > ${SUBSCRIPTS_DIR}/run.sh << EOF
 #!/bin/bash -l
 #SBATCH -D ./
-#SBATCH -o ${OUTPUT_DIR}/${JOB_NAME}.%j
-#SBATCH -e ${OUTPUT_DIR}/${JOB_NAME}.%j
+#SBATCH -o ${OUTPUT_DIR}/${JOB_NAME}
+#SBATCH -e ${OUTPUT_DIR}/${JOB_NAME}
 #SBATCH -J ${JOB_NAME}
 ${JOB_TIME}
 ${JOB_QUEUE}
+${JOB_ARRAY}
 # Node feature:
 #SBATCH --constraint="gpu"
 #SBATCH --gres=gpu:${GPU}:${NGPU}
@@ -114,9 +159,7 @@ ${JOB_QUEUE}
 
 ### Modules and env variables
 source ${PROJ_ROOT}/${SRC}
-# export PROJ_ROOT=${PROJ_ROOT}
-# export DATA_ROOT=${DATA_ROOT}
-export CUDA_VISIBLE_DEVICES=0
+${ENV_VARS}
 
 cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
 
@@ -125,10 +168,13 @@ module list
 echo -e "Nodes: \${SLURM_JOB_NUM_NODES} \t NTASK: \${SLURM_NTASKS}"
 echo "\${SLURM_NODELIST}"
 
+# Checks done only for job arrays, if not empty
+${RESUME_CHECKPOINTS}
+
 # Run the program:
 ${RUN} train.py \\
   --data_root ${DATA_ROOT}\\
-	--num_epochs 1 \\
+	--num_epochs ${N_EPOCHS} \\
 	${DATA_ARG}
 	--shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
 	--num_G_accumulations 1 --num_D_accumulations 1 \\
@@ -143,11 +189,11 @@ ${RUN} train.py \\
 	--G_eval_mode \\
 	--G_ch 96 --D_ch 96 \\
 	--ema --use_ema --ema_start 20000 \\
-	--test_every 2000 --save_every 1000 --num_best_copies 5 --num_save_copies 2 --seed 0 \\
-	--use_multiepoch_sampler
+	--test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} --num_best_copies 5 --num_save_copies 2 --seed 0 \\
+	--use_multiepoch_sampler ${ADD_ARGS}
 
 EOF
 
 echo "Submitting job ${JOB_NAME}"
 echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh"
-sbatch ${SUBSCRIPTS_DIR}/run.sh
+# sbatch ${SUBSCRIPTS_DIR}/run.sh
