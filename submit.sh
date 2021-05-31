@@ -8,15 +8,20 @@ MODE='long'
 NUM_WORKERS='8'
 MONITORING="sys"
 PARALLEL="false"
-ENV_VARS=''
-ADD_ARGS=''
+SEED='0'
+
 
 # DEFAULT TRAINING VALUES
 TEST_EVERY='1000'
 SAVE_EVERY='1000'
 EMA_START='20000'
-G_LR='2e-5'
-D_LR='8e-5'
+G_LR='1e-4'
+D_LR='4e-4'
+
+# OTHER VARS
+ENV_VARS=''
+ADD_ARGS=''
+JOB_ARR_LENGTH='0'
 
 # PATHS
 DATA_ROOT="/ptmp/pierocor/datasets/"
@@ -43,18 +48,20 @@ print_usage() {
  -d <string> dataset (E256 | small_E256);
  -b <int> batch size;
  -w <int> number of workers for DataLoader;
+ -s <int> seed;
  -t <string> Monitoring tool (sys | usr | pt);
  -p Use all GPUs with DataParallel;
  -r resume from previous checkpoint.
  "
 }
 
-while getopts ':m:d:b:w:t:pr' flag; do
+while getopts ':m:d:b:w:s:t:pr' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     d) DATASET="${OPTARG}" ;;
     b) BS="${OPTARG}" ;;
     w) NUM_WORKERS="${OPTARG}" ;;
+    s) SEED="${OPTARG}" ;;
     t) MONITORING="${OPTARG}" ;;
     p) PARALLEL="true" ;;
     r) ADD_ARGS="${ADD_ARGS} --resume" ;;
@@ -63,7 +70,7 @@ while getopts ':m:d:b:w:t:pr' flag; do
   esac
 done
 
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}"
+JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}"
 
 case ${DATASET} in
   E256)
@@ -135,7 +142,7 @@ case ${MODE} in
     N_EPOCHS='3'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=0-00:10:00'
-    JOB_ARRAY='#SBATCH --array=0-2%1'
+    JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
     RESUME_CHECKPOINTS="
 if [ \$SLURM_ARRAY_TASK_ID -ne 0 ]; then
@@ -148,7 +155,7 @@ fi
     N_EPOCHS='100'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=1-00:00:00'
-    JOB_ARRAY='#SBATCH --array=0-5%1'
+    JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
     RESUME_CHECKPOINTS="
 if [ \$SLURM_ARRAY_TASK_ID -ne 0 ]; then
@@ -226,7 +233,9 @@ ${RUN} train.py \\
   --G_eval_mode \\
   --G_ch 96 --D_ch 96 \\
   --ema --use_ema --ema_start ${EMA_START} \\
-  --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} --num_best_copies 5 --num_save_copies 2 --seed 0 \\
+  --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} \\
+  --num_best_copies 5 --num_save_copies 2 \\
+  --seed ${SEED} \\
   --use_multiepoch_sampler ${ADD_ARGS}
 
 EOF
