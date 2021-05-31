@@ -25,6 +25,9 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from torch.utils.data.distributed import DistributedSampler
+import horovod.torch as hvd
+
 
 import datasets as dset
 
@@ -587,17 +590,23 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   # using validation / test splits.
   loaders = []   
   random.seed(0)
-  if use_multiepoch_sampler:
-    print('Using multiepoch sampler from start_itr %d...' % start_itr)
-    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
-    sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
-    train_loader = DataLoader(train_set, batch_size=batch_size,
-                              sampler=sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
-  else:
-    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
-                     'drop_last': drop_last} # Default, drop last incomplete batch
-    train_loader = DataLoader(train_set, batch_size=batch_size,
-                              shuffle=shuffle, worker_init_fn=np.random.seed(0), **loader_kwargs)
+  # if use_multiepoch_sampler:
+  #   print('Using multiepoch sampler from start_itr %d...' % start_itr)
+  #   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
+  #   sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
+  #   train_loader = DataLoader(train_set, batch_size=batch_size,
+  #                             sampler=sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
+  # else:
+  #   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
+  #                    'drop_last': drop_last} # Default, drop last incomplete batch
+  #   train_loader = DataLoader(train_set, batch_size=batch_size,
+  #                             shuffle=shuffle, worker_init_fn=np.random.seed(0), **loader_kwargs)
+  print('Ignoring multiepoch sampler!')
+  loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
+  train_sampler = DistributedSampler(train_dataset, num_replicas=hvd.size(),
+                                    rank=hvd.rank())
+  train_loader = DataLoader(train_set, batch_size=batch_size,
+                            sampler=train_sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
   loaders.append(train_loader)
   return loaders
 
@@ -899,30 +908,32 @@ def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
   t_start = time.time()
   t_last = 0
   for n, item in enumerate(items):
-    t_now = time.time()
-    if t_now - t_last > min_delay:
-      print("\r%s%d/%d (%6.2f%%)" % (
-              desc, n+1, total, n / float(total) * 100), end=" ")
-      if n > 0:
-        
-        if displaytype == 's1k': # minutes/seconds for 1000 iters
-          next_1000 = n + (1000 - n%1000)
-          t_done = t_now - t_start
-          t_1k = t_done / n * next_1000
-          outlist = list(divmod(t_done, 60)) + list(divmod(t_1k - t_done, 60))
-          print("(TE/ET1k: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
-        else:# displaytype == 'eta':
-          t_done = t_now - t_start
-          t_total = t_done / n * total
-          outlist = list(divmod(t_done, 60)) + list(divmod(t_total - t_done, 60))
-          print("(TE/ETA: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+    if hvd.rank() == 0:
+      t_now = time.time()
+      if t_now - t_last > min_delay:
+        print("\r%s%d/%d (%6.2f%%)" % (
+                desc, n+1, total, n / float(total) * 100), end=" ")
+        if n > 0:
           
-      sys.stdout.flush()
-      t_last = t_now
+          if displaytype == 's1k': # minutes/seconds for 1000 iters
+            next_1000 = n + (1000 - n%1000)
+            t_done = t_now - t_start
+            t_1k = t_done / n * next_1000
+            outlist = list(divmod(t_done, 60)) + list(divmod(t_1k - t_done, 60))
+            print("(TE/ET1k: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+          else:# displaytype == 'eta':
+            t_done = t_now - t_start
+            t_total = t_done / n * total
+            outlist = list(divmod(t_done, 60)) + list(divmod(t_total - t_done, 60))
+            print("(TE/ETA: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+
+        sys.stdout.flush()
+        t_last = t_now
     yield item
-  t_total = time.time() - t_start
-  print("\r%s%d/%d (100.00%%) (took %d:%02d)" % ((desc, total, total) +
-                                                   divmod(t_total, 60)))
+  if hvd.rank() == 0:
+    t_total = time.time() - t_start
+    print("\r%s%d/%d (100.00%%) (took %d:%02d)" % ((desc, total, total) +
+                                                    divmod(t_total, 60)))
 
 
 # Sample function for use with inception metrics

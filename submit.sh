@@ -184,7 +184,7 @@ ${JOB_ARRAY}
 #SBATCH --mem=0
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-socket=${NTASK_SOCKET}
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks-per-node=${NGPU}
 #SBATCH --cpus-per-task=${CPUS}
 #SBATCH --threads-per-core=1
 

@@ -8,6 +8,7 @@ from torch.nn import init
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn import Parameter as P
+import horovod.torch as hvd
 
 import layers
 from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
@@ -199,6 +200,9 @@ class Generator(nn.Module):
       self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
                            betas=(self.B1, self.B2), weight_decay=0,
                            eps=self.adam_eps)
+    self.optim = hvd.DistributedOptimizer(self.optim,
+        named_parameters=self.named_parameters(prefix='generator'))
+    hvd.broadcast_parameters(self.state_dict(), root_rank=0)
 
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
@@ -365,6 +369,10 @@ class Discriminator(nn.Module):
     else:
       self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
                              betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
+    self.optim = hvd.DistributedOptimizer(self.optim,
+        named_parameters=generator.named_parameters(prefix='discriminator'))
+    hvd.broadcast_parameters(self.state_dict(), root_rank=0)
+
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
     # self.j = 0

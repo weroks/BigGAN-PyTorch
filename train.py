@@ -21,6 +21,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.nn import Parameter as P
 import torchvision
+import horovod.torch as hvd
 
 # Import my stuff
 import inception_utils
@@ -56,7 +57,8 @@ def run(config):
   utils.seed_rng(config['seed'])
 
   # Prepare root folders if necessary
-  utils.prepare_root(config)
+  if hvd.rank() == 0:
+    utils.prepare_root(config)
 
   # Setup cudnn.benchmark for free speed
   torch.backends.cudnn.benchmark = True
@@ -65,7 +67,8 @@ def run(config):
   model = __import__(config['model'])
   experiment_name = (config['experiment_name'] if config['experiment_name']
                        else utils.name_from_config(config))
-  print('Experiment name is %s' % experiment_name)
+  if hvd.rank() == 0:
+    print('Experiment name is %s' % experiment_name)
 
   # Next, build the model
   G = model.Generator(**config).to(device)
@@ -73,7 +76,8 @@ def run(config):
   
    # If using EMA, prepare it
   if config['ema']:
-    print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
+    if hvd.rank() == 0:
+      print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
     G_ema = model.Generator(**{**config, 'skip_init':True, 
                                'no_optim': True}).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
@@ -91,17 +95,19 @@ def run(config):
     D = D.half()
     # Consider automatically reducing SN_eps?
   GD = model.G_D(G, D)
-  print(G)
-  print(D)
-  print('Number of params in G: {} D: {}'.format(
-    *[sum([p.data.nelement() for p in net.parameters()]) for net in [G,D]]))
+  if hvd.rank() == 0:
+    print(G)
+    print(D)
+    print('Number of params in G: {} D: {}'.format(
+      *[sum([p.data.nelement() for p in net.parameters()]) for net in [G,D]]))
   # Prepare state dict, which holds things like epoch # and itr #
   state_dict = {'itr': 0, 'epoch': 0, 'save_num': 0, 'save_best_num': 0,
                 'best_IS': 0, 'best_FID': 999999, 'config': config}
 
   # If loading from a pre-trained model, load weights
   if config['resume']:
-    print('Loading weights...')
+    if hvd.rank() == 0:
+      print('Loading weights...')
     utils.load_weights(G, D, state_dict,
                        config['weights_root'], experiment_name, 
                        config['load_weights'] if config['load_weights'] else None,
@@ -113,20 +119,21 @@ def run(config):
     if config['cross_replica']:
       patch_replication_callback(GD)
 
-  # Prepare loggers for stats; metrics holds test metrics,
-  # lmetrics holds any desired training metrics.
-  test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'],
-                                            experiment_name)
-  train_metrics_fname = '%s/%s' % (config['logs_root'], experiment_name)
-  print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
-  test_log = utils.MetricsLogger(test_metrics_fname, 
-                                 reinitialize=(not config['resume']))
-  print('Training Metrics will be saved to {}'.format(train_metrics_fname))
-  train_log = utils.MyLogger(train_metrics_fname, 
-                             reinitialize=(not config['resume']),
-                             logstyle=config['logstyle'])
-  # Write metadata
-  utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
+  if hvd.rank() == 0:
+    # Prepare loggers for stats; metrics holds test metrics,
+    # lmetrics holds any desired training metrics.
+    test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'],
+                                              experiment_name)
+    train_metrics_fname = '%s/%s' % (config['logs_root'], experiment_name)
+    print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
+    test_log = utils.MetricsLogger(test_metrics_fname, 
+                                  reinitialize=(not config['resume']))
+    print('Training Metrics will be saved to {}'.format(train_metrics_fname))
+    train_log = utils.MyLogger(train_metrics_fname, 
+                              reinitialize=(not config['resume']),
+                              logstyle=config['logstyle'])
+    # Write metadata
+    utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
   # Prepare data; the Discriminator's batch size is all that needs to be passed
   # to the dataloader, as G doesn't require dataloading.
   # Note that at every loader iteration we pass in enough data to complete
@@ -138,6 +145,8 @@ def run(config):
   # Bug when use_multiepoch_sampler, epochs squared!
   n_epochs = ["num_epochs"]
   if config["use_multiepoch_sampler"]:
+    # TODO:
+    raise "No use_multiepoch_sampler"
     n_epochs = 1
 
   # Prepare inception metrics: FID and IS
@@ -166,14 +175,16 @@ def run(config):
                               G=(G_ema if config['ema'] and config['use_ema']
                                  else G),
                               z_=z_, y_=y_, config=config)
-
-  print('Beginning training at epoch %d...' % state_dict['epoch'])
+  if hvd.rank() == 0:
+    print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], n_epochs):
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
       pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
     else:
+      # TODO:
+      raise "No tqdm bar"
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
       # Increment the iteration counter
@@ -189,36 +200,41 @@ def run(config):
       else:
         x, y = x.to(device), y.to(device)
       metrics = train(x, y)
-      train_log.log(itr=int(state_dict['itr']), **metrics)
+      if hvd.rank() == 0:
+        train_log.log(itr=int(state_dict['itr']), **metrics)
       
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
-        train_log.log(itr=int(state_dict['itr']), 
-                      **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
+        if hvd.rank() == 0:
+          train_log.log(itr=int(state_dict['itr']), 
+                        **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
 
       # If using my progbar, print metrics.
       if config['pbar'] == 'mine':
+        if hvd.rank() == 0:
           print(', '.join(['itr: %d' % state_dict['itr']] 
                            + ['%s : %+4.3f' % (key, metrics[key])
                            for key in metrics]), end=' ')
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
-        if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
-          G.eval()
-          if config['ema']:
-            G_ema.eval()
-        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
-                                  state_dict, config, experiment_name)
+        if hvd.rank() == 0:
+          if config['G_eval_mode']:
+            print('Switchin G to eval mode...')
+            G.eval()
+            if config['ema']:
+              G_ema.eval()
+          train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+                                    state_dict, config, experiment_name)
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
-        if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
-          G.eval()
-        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log)
+        if hvd.rank() == 0:
+          if config['G_eval_mode']:
+            print('Switchin G to eval mode...')
+            G.eval()
+          train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                          get_inception_metrics, experiment_name, test_log)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
@@ -227,7 +243,17 @@ def main():
   # parse command line and run
   parser = utils.prepare_parser()
   config = vars(parser.parse_args())
-  print(config)
+
+  hvd.init()
+  if torch.cuda.is_available():
+    torch.cuda.set_device(hvd.local_rank())
+  print('Hello, rank = %d, local_rank = %d, size = %d, local_size = %d\n \
+         device: %s\tcuda_device: %d' % (hvd.rank(), hvd.local_rank(),
+        hvd.size(), hvd.local_size(), hvd.local_rank(), torch.cuda.current_device()))
+
+  if hvd.rank() == 0:
+    print(config)
+
   run(config)
 
 if __name__ == '__main__':
