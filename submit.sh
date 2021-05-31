@@ -15,6 +15,8 @@ ADD_ARGS=''
 TEST_EVERY='1000'
 SAVE_EVERY='1000'
 EMA_START='20000'
+G_LR='2e-5'
+D_LR='8e-5'
 
 # PATHS
 DATA_ROOT="/ptmp/pierocor/datasets/"
@@ -61,7 +63,7 @@ while getopts ':m:d:b:w:t:pr' flag; do
   esac
 done
 
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}"
+JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}"
 
 case ${DATASET} in
   E256)
@@ -213,7 +215,7 @@ ${RUN} train.py \\
   ${DATA_ARG}
   --shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
   --num_G_accumulations 1 --num_D_accumulations 1 \\
-  --num_D_steps 1 --G_lr 1e-4 --D_lr 4e-4 --D_B2 0.999 --G_B2 0.999 \\
+  --num_D_steps 1 --G_lr ${G_LR} --D_lr ${D_LR} --D_B2 0.999 --G_B2 0.999 \\
   --G_attn 64 --D_attn 64 \\
   --G_nl inplace_relu --D_nl inplace_relu \\
   --SN_eps 1e-6 --BN_eps 1e-5 --adam_eps 1e-6 \\
