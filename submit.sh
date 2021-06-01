@@ -31,8 +31,8 @@ LOGS_ROOT="${OUT_ROOT}/logs/"
 SAMPLES_ROOT="${OUT_ROOT}/samples/"
 
 PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts/" 
-OUTPUT_DIR="${OUT_ROOT}/output/"
+SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts/tmp/" 
+OUTPUT_DIR="${OUT_ROOT}/output/tmp/"
 
 # Create outputs directories
 mkdir -p ${SUBSCRIPTS_DIR}
@@ -235,8 +235,7 @@ ${RUN} train.py \\
   --ema --use_ema --ema_start ${EMA_START} \\
   --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} \\
   --num_best_copies 5 --num_save_copies 2 \\
-  --seed ${SEED} \\
-  --use_multiepoch_sampler ${ADD_ARGS}
+  --seed ${SEED} ${ADD_ARGS}
 
 EOF
 

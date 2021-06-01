@@ -167,7 +167,8 @@ class Generator(nn.Module):
 
       # If attention on this block, attach it to the end
       if self.arch['attention'][self.arch['resolution'][index]]:
-        print('Adding attention layer in G at resolution %d' % self.arch['resolution'][index])
+        if hvd.rank() == 0:
+          print('Adding attention layer in G at resolution %d' % self.arch['resolution'][index])
         self.blocks[-1] += [layers.Attention(self.arch['out_channels'][index], self.which_conv)]
 
     # Turn self.blocks into a ModuleList so that it's all properly registered.
@@ -222,9 +223,11 @@ class Generator(nn.Module):
         elif self.init in ['glorot', 'xavier']:
           init.xavier_uniform_(module.weight)
         else:
-          print('Init style not recognized...')
+          if hvd.rank() == 0:
+            print('Init style not recognized...')
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
-    print('Param count for G''s initialized parameters: %d' % self.param_count)
+    if hvd.rank() == 0:
+      print('Param count for G''s initialized parameters: %d' % self.param_count)
 
   # Note on this forward function: we pass in a y vector which has
   # already been passed through G.shared to enable easy class-wise
@@ -344,7 +347,8 @@ class Discriminator(nn.Module):
                        downsample=(nn.AvgPool2d(2) if self.arch['downsample'][index] else None))]]
       # If attention on this block, attach it to the end
       if self.arch['attention'][self.arch['resolution'][index]]:
-        print('Adding attention layer in D at resolution %d' % self.arch['resolution'][index])
+        if hvd.rank() == 0:
+          print('Adding attention layer in D at resolution %d' % self.arch['resolution'][index])
         self.blocks[-1] += [layers.Attention(self.arch['out_channels'][index],
                                              self.which_conv)]
     # Turn self.blocks into a ModuleList so that it's all properly registered.
@@ -370,7 +374,7 @@ class Discriminator(nn.Module):
       self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
                              betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
     self.optim = hvd.DistributedOptimizer(self.optim,
-        named_parameters=generator.named_parameters(prefix='discriminator'))
+        named_parameters=self.named_parameters(prefix='discriminator'))
     hvd.broadcast_parameters(self.state_dict(), root_rank=0)
 
     # LR scheduling, left here for forward compatibility
@@ -391,9 +395,11 @@ class Discriminator(nn.Module):
         elif self.init in ['glorot', 'xavier']:
           init.xavier_uniform_(module.weight)
         else:
-          print('Init style not recognized...')
+          if hvd.rank() == 0:
+            print('Init style not recognized...')
         self.param_count += sum([p.data.nelement() for p in module.parameters()])
-    print('Param count for D''s initialized parameters: %d' % self.param_count)
+    if hvd.rank() == 0:
+      print('Param count for D''s initialized parameters: %d' % self.param_count)
 
   def forward(self, x, y=None):
     # Stick x into h for cleaner for loops without flow control

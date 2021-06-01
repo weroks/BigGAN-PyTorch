@@ -533,7 +533,8 @@ class MultiEpochSampler(torch.utils.data.Sampler):
       # return iter(torch.randint(high=n, size=(self.num_samples,), dtype=torch.int64).tolist())
     # return iter(.tolist())
     output = torch.cat(out).tolist()
-    print('Length dataset output is %d' % len(output))
+    if hvd.rank() == 0:
+      print('Length dataset output is %d' % len(output))
     return iter(output)
 
   def __len__(self):
@@ -549,7 +550,8 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
 
   # Append /FILENAME.hdf5 to root if using hdf5
   data_root += '/%s' % root_dict[dataset]
-  print('Using dataset root location %s' % data_root)
+  if hvd.rank() == 0:
+    print('Using dataset root location %s' % data_root)
 
   which_dataset = dset_dict[dataset]
   norm_mean = [0.5,0.5,0.5]
@@ -585,7 +587,6 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   train_set = which_dataset(root=data_root, transform=train_transform,
                             load_in_mem=load_in_mem, **dataset_kwargs)
 
-  print('len(train_set) = %d' % len(train_set))
   # Prepare loader; the loaders list is for forward compatibility with
   # using validation / test splits.
   loaders = []   
@@ -601,12 +602,17 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   #                    'drop_last': drop_last} # Default, drop last incomplete batch
   #   train_loader = DataLoader(train_set, batch_size=batch_size,
   #                             shuffle=shuffle, worker_init_fn=np.random.seed(0), **loader_kwargs)
-  print('Ignoring multiepoch sampler!')
   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
-  train_sampler = DistributedSampler(train_dataset, num_replicas=hvd.size(),
+  train_sampler = DistributedSampler(train_set, num_replicas=hvd.size(),
                                     rank=hvd.rank())
   train_loader = DataLoader(train_set, batch_size=batch_size,
                             sampler=train_sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
+  if hvd.rank() == 0:
+    print('multiepoch sampler has been ignored.. TODO: if needed make it compatible with hvd')
+    print('len(train_set) = %d' % len(train_set))
+    print('len(train_sampler) = %d' % len(train_sampler))
+
+
   loaders.append(train_loader)
   return loaders
 
@@ -663,7 +669,8 @@ class ema(object):
     # Initialize target's params to be source's
     self.source_dict = self.source.state_dict()
     self.target_dict = self.target.state_dict()
-    print('Initializing EMA parameters to be source parameters...')
+    if hvd.rank() == 0:
+      print('Initializing EMA parameters to be source parameters...')
     with torch.no_grad():
       for key in self.source_dict:
         self.target_dict[key].data.copy_(self.source_dict[key].data)
