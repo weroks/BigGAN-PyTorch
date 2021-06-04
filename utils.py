@@ -27,6 +27,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import datasets as dset
+import losses
+
 
 
 def prepare_parser():
@@ -127,6 +129,9 @@ def prepare_parser():
     '--norm_style', type=str, default='bn',
     help='Normalizer style for G, one of bn [batchnorm], in [instancenorm], '
          'ln [layernorm], gn [groupnorm] (default: %(default)s)')
+  parser.add_argument(
+    '--loss', type=str, default='hinge',
+    help='Loss function to use, hinge or dcgan (default: %(default)s)')
          
   ### Model init stuff ###
   parser.add_argument(
@@ -447,6 +452,10 @@ classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
                    'ir': nn.ReLU(inplace=True)}
+gen_loss_dict = {'hinge': losses.loss_hinge_gen,
+                 'dcgan': losses.loss_dcgan_gen}
+dis_loss_dict = {'hinge': losses.loss_hinge_dis,
+                 'dcgan': losses.loss_dcgan_dis}
 
 class CenterCropLongEdge(object):
   """Crops the given PIL Image on the long edge.
@@ -1076,6 +1085,7 @@ def name_from_config(config):
   'Gshared' if config['G_shared'] else None,
   'hier' if config['hier'] else None,
   'ema' if config['ema'] else None,
+  config['loss'],
   config['name_suffix'] if config['name_suffix'] else None,
   ]
   if item is not None])

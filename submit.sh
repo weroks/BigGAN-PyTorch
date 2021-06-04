@@ -17,6 +17,7 @@ SAVE_EVERY='1000'
 EMA_START='20000'
 G_LR='1e-4'
 D_LR='4e-4'
+LOSS="dcgan"
 
 # OTHER VARS
 ENV_VARS=''
@@ -73,7 +74,7 @@ while getopts ':m:d:b:w:s:t:pr' flag; do
   esac
 done
 
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}"
+JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}_${LOSS}"
 
 case ${DATASET} in
   E256)
