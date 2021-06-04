@@ -136,7 +136,7 @@ def run(config):
   loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                       'start_itr': state_dict['itr']})
   # Bug when use_multiepoch_sampler, epochs squared!
-  n_epochs = ["num_epochs"]
+  n_epochs = config["num_epochs"]
   if config["use_multiepoch_sampler"]:
     n_epochs = 1
 

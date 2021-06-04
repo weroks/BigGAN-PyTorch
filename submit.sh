@@ -22,17 +22,20 @@ D_LR='4e-4'
 ENV_VARS=''
 ADD_ARGS=''
 JOB_ARR_LENGTH='0'
+N_NODES='1'
 
 # PATHS
-DATA_ROOT="/ptmp/pierocor/datasets/"
-OUT_ROOT="/ptmp/pierocor/BigGan_out/"
-WEIGHTS_ROOT="${OUT_ROOT}/weights/"
-LOGS_ROOT="${OUT_ROOT}/logs/"
+PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+DATA_ROOT="/ptmp/pierocor/datasets"
+OUT_ROOT="${PROJ_ROOT}/tmp"
+WEIGHTS_ROOT="${OUT_ROOT}/weights"
+LOGS_ROOT="${OUT_ROOT}/logs"
 SAMPLES_ROOT="${OUT_ROOT}/samples/"
 
-PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts/" 
-OUTPUT_DIR="${OUT_ROOT}/output/"
+
+SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts" 
+OUTPUT_DIR="${OUT_ROOT}/output"
 
 # Create outputs directories
 mkdir -p ${SUBSCRIPTS_DIR}
@@ -136,10 +139,11 @@ case ${MODE} in
     JOB_NAME_EXT="%j"
     ;;
   test_arr)
-    TEST_EVERY='120'
-    SAVE_EVERY='120'
-    EMA_START='200'
-    N_EPOCHS='3'
+    TEST_EVERY='10'
+    SAVE_EVERY='15'
+    EMA_START='17'
+    N_EPOCHS='2'
+    N_NODES='1'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=0-00:10:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
@@ -168,8 +172,11 @@ fi
     echo "Wrong mode: long, test, huge."
 esac
 
+JOB_NAME="${JOB_NAME}"
 
-cat > ${SUBSCRIPTS_DIR}/run.sh << EOF
+DATE=`date '+%d%m%Y%H%M%S'`
+
+cat > ${SUBSCRIPTS_DIR}/run.sh.${DATE} << EOF
 #!/bin/bash -l
 #SBATCH -D ./
 #SBATCH -o ${OUTPUT_DIR}/${JOB_NAME}.${JOB_NAME_EXT}
@@ -182,7 +189,7 @@ ${JOB_ARRAY}
 #SBATCH --constraint="gpu"
 #SBATCH --gres=gpu:${GPU}:${NGPU}
 #SBATCH --mem=0
-#SBATCH --nodes=1
+#SBATCH --nodes=${N_NODES}
 #SBATCH --ntasks-per-socket=${NTASK_SOCKET}
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=${CPUS}
@@ -198,9 +205,9 @@ ${ENV_VARS}
 
 ### store job submit script using a unique id:
 if [ -z "\$SLURM_ARRAY_JOB_ID" ]; then
-  cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
+  cp ${SUBSCRIPTS_DIR}/run.sh.${DATE} ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_JOB_ID}.sh
 elif [[ \${SLURM_ARRAY_TASK_ID} -eq 0 ]]; then
-  cp ${SUBSCRIPTS_DIR}/run.sh ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_ARRAY_JOB_ID}_\${SLURM_ARRAY_TASK_ID}.sh
+  cp ${SUBSCRIPTS_DIR}/run.sh.${DATE} ${SUBSCRIPTS_DIR}/${JOB_NAME}.\${SLURM_ARRAY_JOB_ID}_\${SLURM_ARRAY_TASK_ID}.sh
 fi
 
 ### print modules and basic SLURM info
@@ -235,11 +242,11 @@ ${RUN} train.py \\
   --ema --use_ema --ema_start ${EMA_START} \\
   --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} \\
   --num_best_copies 5 --num_save_copies 2 \\
-  --seed ${SEED} \\
-  --use_multiepoch_sampler ${ADD_ARGS}
+  --seed ${SEED} ${ADD_ARGS}
 
 EOF
 
 echo "Submitting job ${JOB_NAME}"
 echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh"
-sbatch ${SUBSCRIPTS_DIR}/run.sh
+echo "Output: ${OUTPUT_DIR}/${JOB_NAME}"
+sbatch ${SUBSCRIPTS_DIR}/run.sh.${DATE}
