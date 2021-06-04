@@ -21,7 +21,7 @@ D_LR='4e-4'
 # OTHER VARS
 ENV_VARS=''
 ADD_ARGS=''
-JOB_ARR_LENGTH='3'
+JOB_ARR_LENGTH='0'
 N_NODES='1'
 
 # PATHS
@@ -139,10 +139,10 @@ case ${MODE} in
     JOB_NAME_EXT="%j"
     ;;
   test_arr)
-    TEST_EVERY='120'
-    SAVE_EVERY='120'
-    EMA_START='200'
-    N_EPOCHS='3'
+    TEST_EVERY='10'
+    SAVE_EVERY='15'
+    EMA_START='17'
+    N_EPOCHS='2'
     N_NODES='1'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=0-00:10:00'

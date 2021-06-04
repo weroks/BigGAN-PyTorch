@@ -144,18 +144,18 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                      experiment_name=experiment_name,
                      folder_number=state_dict['itr'],
                      z_=z_)
-  # Also save interp sheets
-  for fix_z, fix_y in zip([False, False, True], [False, True, False]):
-    utils.interp_sheet(which_G,
-                       num_per_sheet=16,
-                       num_midpoints=8,
-                       num_classes=config['n_classes'],
-                       parallel=config['parallel'],
-                       samples_root=config['samples_root'],
-                       experiment_name=experiment_name,
-                       folder_number=state_dict['itr'],
-                       sheet_number=0,
-                       fix_z=fix_z, fix_y=fix_y, device='cuda')
+  # # Also save interp sheets
+  # for fix_z, fix_y in zip([False, False, True], [False, True, False]):
+  #   utils.interp_sheet(which_G,
+  #                      num_per_sheet=16,
+  #                      num_midpoints=8,
+  #                      num_classes=config['n_classes'],
+  #                      parallel=config['parallel'],
+  #                      samples_root=config['samples_root'],
+  #                      experiment_name=experiment_name,
+  #                      folder_number=state_dict['itr'],
+  #                      sheet_number=0,
+  #                      fix_z=fix_z, fix_y=fix_y, device='cuda')
 
   
 ''' This function runs the inception metrics code, checks if the results
@@ -164,7 +164,8 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
     improvement. '''
 def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
          experiment_name, test_log):
-  print('Gathering inception metrics...')
+  if hvd.rank() == 0:
+    print('Gathering inception metrics...', flush=True)
   if config['accumulate_stats']:
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
@@ -172,17 +173,19 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   IS_mean, IS_std, FID = get_inception_metrics(sample, 
                                                config['num_inception_images'],
                                                num_splits=10)
-  print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
-  # If improved over previous best metric, save approrpiate copy
-  if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
-    or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
-    print('%s improved over previous best, saving checkpoint...' % config['which_best'])
-    utils.save_weights(G, D, state_dict, config['weights_root'],
-                       experiment_name, 'best%d' % state_dict['save_best_num'],
-                       G_ema if config['ema'] else None)
-    state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
-  state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
-  state_dict['best_FID'] = min(state_dict['best_FID'], FID)
-  # Log results to file
-  test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
-               IS_std=float(IS_std), FID=float(FID))
+  if hvd.rank() == 0:
+    print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID), flush=True)
+    # If improved over previous best metric, save approrpiate copy
+    if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
+      or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
+      print('%s improved over previous best, saving checkpoint...' % config['which_best'])
+      utils.save_weights(G, D, state_dict, config['weights_root'],
+                        experiment_name, 'best%d' % state_dict['save_best_num'],
+                        G_ema if config['ema'] else None)
+      state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
+    state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
+    state_dict['best_FID'] = min(state_dict['best_FID'], FID)
+    # Log results to file
+    if test_log is not None:
+      test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
+                  IS_std=float(IS_std), FID=float(FID))

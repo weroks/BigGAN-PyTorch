@@ -21,6 +21,9 @@ import torch.nn.functional as F
 from torch.nn import Parameter as P
 from torchvision.models.inception import inception_v3
 
+import horovod.torch as hvd
+
+
 
 # Module that wraps the inception network to enable use with dataparallel and
 # returning pool features and logits.
@@ -282,22 +285,22 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
   net = load_inception_net(parallel)
   def get_inception_metrics(sample, num_inception_images, num_splits=10, 
                             prints=True, use_torch=True):
-    if prints:
+    if prints and hvd.rank() == 0:
       print('Gathering activations...')
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
-    if prints:  
+    if prints and hvd.rank() == 0:
       print('Calculating Inception Score...')
     IS_mean, IS_std = calculate_inception_score(logits.cpu().numpy(), num_splits)
     if no_fid:
       FID = 9999.0
     else:
-      if prints:
+      if prints and hvd.rank() == 0:
         print('Calculating means and covariances...')
       if use_torch:
         mu, sigma = torch.mean(pool, 0), torch_cov(pool, rowvar=False)
       else:
         mu, sigma = np.mean(pool.cpu().numpy(), axis=0), np.cov(pool.cpu().numpy(), rowvar=False)
-      if prints:
+      if prints and hvd.rank() == 0:
         print('Covariances calculated, getting FID...')
       if use_torch:
         FID = torch_calculate_frechet_distance(mu, sigma, torch.tensor(data_mu).float().cuda(), torch.tensor(data_sigma).float().cuda())

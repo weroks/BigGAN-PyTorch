@@ -119,21 +119,23 @@ def run(config):
     if config['cross_replica']:
       patch_replication_callback(GD)
 
+  # Prepare loggers for stats; metrics holds test metrics,
+  # lmetrics holds any desired training metrics.
   if hvd.rank() == 0:
-    # Prepare loggers for stats; metrics holds test metrics,
-    # lmetrics holds any desired training metrics.
     test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'],
                                               experiment_name)
     train_metrics_fname = '%s/%s' % (config['logs_root'], experiment_name)
-    print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
     test_log = utils.MetricsLogger(test_metrics_fname, 
                                   reinitialize=(not config['resume']))
-    print('Training Metrics will be saved to {}'.format(train_metrics_fname))
     train_log = utils.MyLogger(train_metrics_fname, 
                               reinitialize=(not config['resume']),
                               logstyle=config['logstyle'])
+    print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
+    print('Training Metrics will be saved to {}'.format(train_metrics_fname))
     # Write metadata
     utils.write_metadata(config['logs_root'], experiment_name, config, state_dict)
+  else:
+    test_log = None
   # Prepare data; the Discriminator's batch size is all that needs to be passed
   # to the dataloader, as G doesn't require dataloading.
   # Note that at every loader iteration we pass in enough data to complete
@@ -214,7 +216,7 @@ def run(config):
         if hvd.rank() == 0:
           print(', '.join(['itr: %d' % state_dict['itr']] 
                            + ['%s : %+4.3f' % (key, metrics[key])
-                           for key in metrics]), end=' ')
+                           for key in metrics]), end=' ', flush=True)
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
@@ -229,7 +231,7 @@ def run(config):
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
-        if hvd.rank() == 0:
+        # if hvd.rank() == 0:
           if config['G_eval_mode']:
             print('Switchin G to eval mode...')
             G.eval()
