@@ -102,15 +102,17 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     a set of full conditional sample sheets, and a set of interp sheets. '''
 def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
                     state_dict, config, experiment_name):
-  utils.save_weights(G, D, state_dict, config['weights_root'],
-                     experiment_name, None, G_ema if config['ema'] else None)
-  # Save an additional copy to mitigate accidental corruption if process
-  # is killed during a save (it's happened to me before -.-)
-  if config['num_save_copies'] > 0:
+  if hvd.rank() == 0:
     utils.save_weights(G, D, state_dict, config['weights_root'],
-                       experiment_name,
-                       'copy%d' %  state_dict['save_num'],
-                       G_ema if config['ema'] else None)
+                      experiment_name, None, G_ema if config['ema'] else None)
+    # Save an additional copy to mitigate accidental corruption if process
+    # is killed during a save (it's happened to me before -.-)
+  if config['num_save_copies'] > 0:
+    if hvd.rank() == 0:
+      utils.save_weights(G, D, state_dict, config['weights_root'],
+                        experiment_name,
+                        'copy%d' %  state_dict['save_num'],
+                        G_ema if config['ema'] else None)
     state_dict['save_num'] = (state_dict['save_num'] + 1 ) % config['num_save_copies']
   
   # Use EMA G for samples or non-EMA?
@@ -122,19 +124,20 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
   
-  # Save a random sample sheet with fixed z and y      
-  with torch.no_grad():
-    if config['parallel']:
-      fixed_Gz =  nn.parallel.data_parallel(which_G, (fixed_z, which_G.shared(fixed_y)))
-    else:
-      fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
-  if not os.path.isdir('%s/%s' % (config['samples_root'], experiment_name)):
-    os.mkdir('%s/%s' % (config['samples_root'], experiment_name))
-  image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 
-                                                  experiment_name,
-                                                  state_dict['itr'])
-  torchvision.utils.save_image(torch.from_numpy(fixed_Gz.float().cpu().numpy()), image_filename,
-                             nrow=int(fixed_Gz.shape[0] **0.5), normalize=True)
+  if hvd.rank() == 0:
+    # Save a random sample sheet with fixed z and y      
+    with torch.no_grad():
+      if config['parallel']:
+        fixed_Gz =  nn.parallel.data_parallel(which_G, (fixed_z, which_G.shared(fixed_y)))
+      else:
+        fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
+    if not os.path.isdir('%s/%s' % (config['samples_root'], experiment_name)):
+      os.mkdir('%s/%s' % (config['samples_root'], experiment_name))
+    image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 
+                                                    experiment_name,
+                                                    state_dict['itr'])
+    torchvision.utils.save_image(torch.from_numpy(fixed_Gz.float().cpu().numpy()), image_filename,
+                              nrow=int(fixed_Gz.shape[0] **0.5), normalize=True)
   # For now, every time we save, also save sample sheets
   utils.sample_sheet(which_G,
                      classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']],
@@ -144,18 +147,18 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                      experiment_name=experiment_name,
                      folder_number=state_dict['itr'],
                      z_=z_)
-  # # Also save interp sheets
-  # for fix_z, fix_y in zip([False, False, True], [False, True, False]):
-  #   utils.interp_sheet(which_G,
-  #                      num_per_sheet=16,
-  #                      num_midpoints=8,
-  #                      num_classes=config['n_classes'],
-  #                      parallel=config['parallel'],
-  #                      samples_root=config['samples_root'],
-  #                      experiment_name=experiment_name,
-  #                      folder_number=state_dict['itr'],
-  #                      sheet_number=0,
-  #                      fix_z=fix_z, fix_y=fix_y, device='cuda')
+  # Also save interp sheets
+  for fix_z, fix_y in zip([False, False, True], [False, True, False]):
+    utils.interp_sheet(which_G,
+                       num_per_sheet=16,
+                       num_midpoints=8,
+                       num_classes=config['n_classes'],
+                       parallel=config['parallel'],
+                       samples_root=config['samples_root'],
+                       experiment_name=experiment_name,
+                       folder_number=state_dict['itr'],
+                       sheet_number=0,
+                       fix_z=fix_z, fix_y=fix_y, device='cuda')
 
   
 ''' This function runs the inception metrics code, checks if the results

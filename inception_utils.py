@@ -269,6 +269,11 @@ def load_inception_net(parallel=False):
     inception_model = nn.DataParallel(inception_model)
   return inception_model
 
+def metric_average(val, name):
+    tensor = torch.tensor(val)
+    avg_tensor = hvd.allreduce(tensor, name=name)
+    return avg_tensor.item()
+
 
 # This produces a function which takes in an iterator which returns a set number of samples
 # and iterates until it accumulates config['num_inception_images'] images.
@@ -287,10 +292,13 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
                             prints=True, use_torch=True):
     if prints and hvd.rank() == 0:
       print('Gathering activations...')
+    num_inception_images = num_inception_images // hvd.size()
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
     if prints and hvd.rank() == 0:
       print('Calculating Inception Score...')
     IS_mean, IS_std = calculate_inception_score(logits.cpu().numpy(), num_splits)
+    IS_mean = metric_average(IS_mean, 'IS_mean')
+    IS_std = metric_average(IS_std, 'IS_std')
     if no_fid:
       FID = 9999.0
     else:

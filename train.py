@@ -220,7 +220,7 @@ def run(config):
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
-        if hvd.rank() == 0:
+        # if hvd.rank() == 0:
           if config['G_eval_mode']:
             print('Switchin G to eval mode...')
             G.eval()
