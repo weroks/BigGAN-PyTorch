@@ -959,36 +959,39 @@ def sample(G, z_, y_, config):
 # Sample function for sample sheets
 def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
                  samples_root, experiment_name, folder_number, z_=None):
-  # Prepare sample directory
-  if not os.path.isdir('%s/%s' % (samples_root, experiment_name)):
-    os.mkdir('%s/%s' % (samples_root, experiment_name))
-  if not os.path.isdir('%s/%s/%d' % (samples_root, experiment_name, folder_number)):
-    os.mkdir('%s/%s/%d' % (samples_root, experiment_name, folder_number))
+  if hvd.rank() == 0:
+    # Prepare sample directory
+    if not os.path.isdir('%s/%s' % (samples_root, experiment_name)):
+      os.mkdir('%s/%s' % (samples_root, experiment_name))
+    if not os.path.isdir('%s/%s/%d' % (samples_root, experiment_name, folder_number)):
+      os.mkdir('%s/%s/%d' % (samples_root, experiment_name, folder_number))
   # loop over total number of sheets
   for i in range(num_classes // classes_per_sheet):
-    ims = []
-    y = torch.arange(i * classes_per_sheet, (i + 1) * classes_per_sheet, device='cuda')
-    for j in range(samples_per_class):
-      if (z_ is not None) and hasattr(z_, 'sample_') and classes_per_sheet <= z_.size(0):
-        z_.sample_()
-      else:
-        z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')        
-      with torch.no_grad():
-        if parallel:
-          o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
+    # HVD: Split work between processes
+    if i % hvd.size() == hvd.rank():
+      ims = []
+      y = torch.arange(i * classes_per_sheet, (i + 1) * classes_per_sheet, device='cuda')
+      for j in range(samples_per_class):
+        if (z_ is not None) and hasattr(z_, 'sample_') and classes_per_sheet <= z_.size(0):
+          z_.sample_()
         else:
-          o = G(z_[:classes_per_sheet], G.shared(y))
+          z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')        
+        with torch.no_grad():
+          if parallel:
+            o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
+          else:
+            o = G(z_[:classes_per_sheet], G.shared(y))
 
-      ims += [o.data.cpu()]
-    # This line should properly unroll the images
-    out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], 
-                                       ims[0].shape[3]).data.float().cpu()
-    out_ims = torch.from_numpy(out_ims.numpy())
-    # The path for the samples
-    image_filename = '%s/%s/%d/samples%d.jpg' % (samples_root, experiment_name, 
-                                                 folder_number, i)
-    torchvision.utils.save_image(out_ims, image_filename,
-                                 nrow=samples_per_class, normalize=True)
+        ims += [o.data.cpu()]
+      # This line should properly unroll the images
+      out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], 
+                                        ims[0].shape[3]).data.float().cpu()
+      out_ims = torch.from_numpy(out_ims.numpy())
+      # The path for the samples
+      image_filename = '%s/%s/%d/samples%d.jpg' % (samples_root, experiment_name, 
+                                                  folder_number, i)
+      torchvision.utils.save_image(out_ims, image_filename,
+                                  nrow=samples_per_class, normalize=True)
 
 
 # Interp function; expects x0 and x1 to be of shape (shape0, 1, rest_of_shape..)
