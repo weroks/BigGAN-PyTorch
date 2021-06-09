@@ -156,8 +156,9 @@ fi
     ADD_ARGS="${ADD_ARGS} \${RESUME}"
     ;;
   full)
-    N_EPOCHS='100'
+    N_EPOCHS='10'
     JOB_QUEUE=''
+    N_NODES='1'
     JOB_TIME='#SBATCH --time=1-00:00:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
