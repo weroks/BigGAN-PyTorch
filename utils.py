@@ -959,12 +959,9 @@ def sample(G, z_, y_, config):
 # Sample function for sample sheets
 def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
                  samples_root, experiment_name, folder_number, z_=None):
-  if hvd.rank() == 0:
-    # Prepare sample directory
-    if not os.path.isdir('%s/%s' % (samples_root, experiment_name)):
-      os.mkdir('%s/%s' % (samples_root, experiment_name))
-    if not os.path.isdir('%s/%s/%d' % (samples_root, experiment_name, folder_number)):
-      os.mkdir('%s/%s/%d' % (samples_root, experiment_name, folder_number))
+  # Prepare sample directory
+  os.makedirs('%s/%s/%d' % (samples_root, experiment_name, folder_number),
+              exist_ok=True)
   # loop over total number of sheets
   for i in range(num_classes // classes_per_sheet):
     # HVD: Split work between processes
