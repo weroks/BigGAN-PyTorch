@@ -31,6 +31,8 @@ import train_fns
 from sync_batchnorm import patch_replication_callback
 
 import random
+import sys
+from datetime import datetime
 
 
 # The main training file. Config is a dictionary specifying the configuration
@@ -247,15 +249,22 @@ def main():
   config = vars(parser.parse_args())
 
   hvd.init()
+
   if torch.cuda.is_available():
     torch.cuda.set_device(hvd.local_rank())
-  print('Hello, rank = %d, local_rank = %d, size = %d, local_size = %d\n \
-         device: %s\tcuda_device: %d' % (hvd.rank(), hvd.local_rank(),
-        hvd.size(), hvd.local_size(), hvd.local_rank(), torch.cuda.current_device()))
+
+  now = datetime.now()
+  dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+
+  print('%s - Hello, rank = %d, local_rank = %d, size = %d, local_size = %d\n \
+         device: %s\tcuda_device: %d' % (dt_string, hvd.rank(), hvd.local_rank(),
+         hvd.size(), hvd.local_size(), hvd.local_rank(), torch.cuda.current_device()))
 
   if hvd.rank() == 0:
     print(config)
 
+  sys.stdout.flush()
+  sys.stderr.flush()
   run(config)
 
 if __name__ == '__main__':

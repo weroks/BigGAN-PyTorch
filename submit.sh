@@ -144,8 +144,8 @@ case ${MODE} in
     EMA_START='17'
     N_EPOCHS='2'
     N_NODES='1'
-    JOB_QUEUE=''
-    JOB_TIME='#SBATCH --time=0-00:10:00'
+    JOB_QUEUE="#SBATCH -p ${TEST_Q}"
+    JOB_TIME='#SBATCH --time=0-00:15:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
     RESUME_CHECKPOINTS="
@@ -213,6 +213,8 @@ fi
 ### print modules and basic SLURM info
 module list
 
+echo -en "START:\t"
+date '+%d/%m/%Y %H-%M-%S'
 echo -e "Nodes: \${SLURM_JOB_NUM_NODES} \t NTASK: \${SLURM_NTASKS}"
 echo "\${SLURM_NODELIST}"
 
