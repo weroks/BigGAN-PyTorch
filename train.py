@@ -143,7 +143,7 @@ def run(config):
   # Note that at every loader iteration we pass in enough data to complete
   # a full D iteration (regardless of number of D steps and accumulations)
   D_batch_size = (config['batch_size'] * config['num_D_steps']
-                  * config['num_D_accumulations'])
+                  * config['num_D_accumulations']) // hvd.size()
   loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
                                       'start_itr': state_dict['itr']})
   # Bug when use_multiepoch_sampler, epochs squared!
@@ -158,7 +158,7 @@ def run(config):
 
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
-  G_batch_size = max(config['G_batch_size'], config['batch_size'])
+  G_batch_size = max(config['G_batch_size'], config['batch_size']) // hvd.size()
   z_, y_ = utils.prepare_z_y(G_batch_size, G.dim_z, config['n_classes'],
                              device=device, fp16=config['G_fp16'])
   # Prepare a fixed z & y to see individual sample evolution throghout training
@@ -210,7 +210,8 @@ def run(config):
       metrics = train(x, y)
       if hvd.rank() == 0:
         train_log.log(itr=int(state_dict['itr']), **metrics)
-      
+        if i == 0:
+          print("G_batch_size %d,\tD_batch_size %d,\tx.shape %s,\ty.shape %s"%(G_batch_size , D_batch_size, x.shape, y.shape) )
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
         if hvd.rank() == 0:

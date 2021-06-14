@@ -1075,6 +1075,7 @@ def name_from_config(config):
   'Gd%d' % config['G_depth'] if config['G_depth'] > 1 else None,
   'Dd%d' % config['D_depth'] if config['D_depth'] > 1 else None,
   'bs%d' % config['batch_size'],
+  'hvd%d' % hvd.size(),
   'Gfp16' if config['G_fp16'] else None,
   'Dfp16' if config['D_fp16'] else None,
   'nDs%d' % config['num_D_steps'] if config['num_D_steps'] > 1 else None,

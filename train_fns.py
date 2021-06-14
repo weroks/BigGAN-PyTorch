@@ -24,9 +24,11 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   def train(x, y):
     G.optim.zero_grad()
     D.optim.zero_grad()
+
+    single_process_batch_size = config['batch_size'] // hvd.size()
     # How many chunks to split x and y into?
-    x = torch.split(x, config['batch_size'])
-    y = torch.split(y, config['batch_size'])
+    x = torch.split(x, single_process_batch_size)
+    y = torch.split(y, single_process_batch_size)
     counter = 0
     
     # Optionally toggle D and G's "require_grad"
@@ -40,7 +42,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       for accumulation_index in range(config['num_D_accumulations']):
         z_.sample_()
         y_.sample_()
-        D_fake, D_real = GD(z_[:config['batch_size']], y_[:config['batch_size']], 
+        D_fake, D_real = GD(z_[:single_process_batch_size], y_[:single_process_batch_size], 
                             x[counter], y[counter], train_G=False, 
                             split_D=config['split_D'])
          
