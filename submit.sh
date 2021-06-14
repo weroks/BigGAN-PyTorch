@@ -159,7 +159,7 @@ fi
   full)
     N_EPOCHS='10'
     JOB_QUEUE=''
-    N_NODES='1'
+    N_NODES='2'
     JOB_TIME='#SBATCH --time=1-00:00:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
