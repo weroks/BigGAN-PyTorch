@@ -126,13 +126,14 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
   
-  if hvd.rank() == 0:
     # Save a random sample sheet with fixed z and y      
-    with torch.no_grad():
-      if config['parallel']:
-        fixed_Gz =  nn.parallel.data_parallel(which_G, (fixed_z, which_G.shared(fixed_y)))
-      else:
-        fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
+  with torch.no_grad():
+    if config['parallel']:
+      fixed_Gz =  nn.parallel.data_parallel(which_G, (fixed_z, which_G.shared(fixed_y)))
+    else:
+      fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
+  fixed_Gz = hvd.allgather(fixed_Gz)
+  if hvd.rank() == 0:
     if not os.path.isdir('%s/%s' % (config['samples_root'], experiment_name)):
       os.mkdir('%s/%s' % (config['samples_root'], experiment_name))
     image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 

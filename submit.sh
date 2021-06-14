@@ -28,8 +28,8 @@ N_NODES='1'
 PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 DATA_ROOT="/ptmp/pierocor/datasets"
-# OUT_ROOT="${PROJ_ROOT}/tmp"
-OUT_ROOT="/ptmp/pierocor/BigGan_out/hvd"
+OUT_ROOT="${PROJ_ROOT}/tmp"
+# OUT_ROOT="/ptmp/pierocor/BigGan_out/hvd"
 WEIGHTS_ROOT="${OUT_ROOT}/weights"
 LOGS_ROOT="${OUT_ROOT}/logs"
 SAMPLES_ROOT="${OUT_ROOT}/samples/"
