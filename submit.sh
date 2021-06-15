@@ -49,6 +49,7 @@ mkdir -p ${SAMPLES_ROOT}
 print_usage() {
   printf "Usage: ./submit.sh
  -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
+ -N <int> number of nodes;
  -d <string> dataset (E256 | small_E256);
  -b <int> batch size;
  -w <int> number of workers for DataLoader;
@@ -59,9 +60,10 @@ print_usage() {
  "
 }
 
-while getopts ':m:d:b:w:s:t:pr' flag; do
+while getopts ':m:N:d:b:w:s:t:pr' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
+    N) N_NODES="${OPTARG}" ;;
     d) DATASET="${OPTARG}" ;;
     b) BS="${OPTARG}" ;;
     w) NUM_WORKERS="${OPTARG}" ;;
@@ -144,7 +146,6 @@ case ${MODE} in
     SAVE_EVERY='15'
     EMA_START='17'
     N_EPOCHS='2'
-    N_NODES='1'
     JOB_QUEUE="#SBATCH -p ${TEST_Q}"
     JOB_TIME='#SBATCH --time=0-00:15:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
@@ -159,7 +160,6 @@ fi
   full)
     N_EPOCHS='10'
     JOB_QUEUE=''
-    N_NODES='2'
     JOB_TIME='#SBATCH --time=1-00:00:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"

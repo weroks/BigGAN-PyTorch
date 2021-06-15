@@ -238,12 +238,12 @@ def run(config):
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
-        # if hvd.rank() == 0:
-          if config['G_eval_mode']:
+        if config['G_eval_mode']:
+          if hvd.rank() == 0:
             print('Switchin G to eval mode...')
             G.eval()
-          train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                          get_inception_metrics, experiment_name, test_log)
+        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                        get_inception_metrics, experiment_name, test_log)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
