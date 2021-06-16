@@ -1,7 +1,6 @@
 #!/bin/bash -l
 
 # Default values
-
 DATASET='small_E256'
 BS='34'
 MODE='long'
@@ -9,32 +8,72 @@ NUM_WORKERS='8'
 MONITORING="sys"
 PARALLEL="false"
 SEED='0'
-
+G_LR='1e-4'
+D_LR='4e-4'
+D_STEPS="1"
+ACCUM="1"
+N_NODES='1'
+DATA_ROOT="/ptmp/pierocor/datasets"
+# OUT_ROOT="${PROJ_ROOT}/tmp"
+OUT_ROOT="/ptmp/pierocor/BigGan_out/hvd"
 
 # DEFAULT TRAINING VALUES
 TEST_EVERY='1000'
 SAVE_EVERY='1000'
 EMA_START='20000'
-G_LR='1e-4'
-D_LR='4e-4'
 
 # OTHER VARS
 ENV_VARS=''
 ADD_ARGS=''
 JOB_ARR_LENGTH='0'
-N_NODES='1'
+
+
+print_usage() {
+  printf "Usage: ./submit.sh
+ -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
+ -N <int> number of nodes;
+ -d <string> dataset (E256 | small_E256);
+ -b <int> batch size (default 34);
+ -a <int> accumulation (both G and D, default 1);
+ -G <float> G learning rate (default 1e-4);
+ -D <float> D learning rate (default 4e-4);
+ -x <int> D training steps (default 1);
+ -w <int> number of workers for DataLoader;
+ -s <int> seed;
+ -o <string> Output root directory;
+ -t <string> Monitoring tool (sys | usr | pt);
+ -p Use all GPUs with DataParallel;
+ -r resume from previous checkpoint.
+ "
+}
+
+while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:pr' flag; do
+  case "${flag}" in
+    m) MODE="${OPTARG}" ;;
+    N) N_NODES="${OPTARG}" ;;
+    d) DATASET="${OPTARG}" ;;
+    b) BS="${OPTARG}" ;;
+    a) ACCUM="${OPTARG}" ;;
+    G) G_LR="${OPTARG}" ;;
+    D) D_LR="${OPTARG}" ;;
+    x) D_STEPS="${OPTARG}" ;;
+    w) NUM_WORKERS="${OPTARG}" ;;
+    s) SEED="${OPTARG}" ;;
+    t) MONITORING="${OPTARG}" ;;
+    o) OUT_ROOT="${OPTARG}" ;;
+    p) PARALLEL="true" ;;
+    r) ADD_ARGS="${ADD_ARGS} --resume" ;;
+    *) print_usage
+       exit 1 ;;
+  esac
+done
 
 # PATHS
 PROJ_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-DATA_ROOT="/ptmp/pierocor/datasets"
-OUT_ROOT="${PROJ_ROOT}/tmp"
-# OUT_ROOT="/ptmp/pierocor/BigGan_out/hvd"
 WEIGHTS_ROOT="${OUT_ROOT}/weights"
 LOGS_ROOT="${OUT_ROOT}/logs"
 SAMPLES_ROOT="${OUT_ROOT}/samples/"
-
-
 SUBSCRIPTS_DIR="${OUT_ROOT}/subscripts" 
 OUTPUT_DIR="${OUT_ROOT}/output"
 
@@ -45,38 +84,8 @@ mkdir -p ${WEIGHTS_ROOT}
 mkdir -p ${LOGS_ROOT}
 mkdir -p ${SAMPLES_ROOT}
 
+JOB_NAME="h_${N_NODES}_${DATASET}_${BS}x${ACCUM}_${G_LR}_${D_LR}_D${D_STEPS}_${MODE}_w${NUM_WORKERS}_s${SEED}"
 
-print_usage() {
-  printf "Usage: ./submit.sh
- -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
- -N <int> number of nodes;
- -d <string> dataset (E256 | small_E256);
- -b <int> batch size;
- -w <int> number of workers for DataLoader;
- -s <int> seed;
- -t <string> Monitoring tool (sys | usr | pt);
- -p Use all GPUs with DataParallel;
- -r resume from previous checkpoint.
- "
-}
-
-while getopts ':m:N:d:b:w:s:t:pr' flag; do
-  case "${flag}" in
-    m) MODE="${OPTARG}" ;;
-    N) N_NODES="${OPTARG}" ;;
-    d) DATASET="${OPTARG}" ;;
-    b) BS="${OPTARG}" ;;
-    w) NUM_WORKERS="${OPTARG}" ;;
-    s) SEED="${OPTARG}" ;;
-    t) MONITORING="${OPTARG}" ;;
-    p) PARALLEL="true" ;;
-    r) ADD_ARGS="${ADD_ARGS} --resume" ;;
-    *) print_usage
-       exit 1 ;;
-  esac
-done
-
-JOB_NAME="${DATASET}_${BS}_${MODE}_w${NUM_WORKERS}_${G_LR}_${D_LR}_s${SEED}"
 
 case ${DATASET} in
   E256)
@@ -102,6 +111,8 @@ case $PARALLEL in
     ADD_ARGS="${ADD_ARGS} --parallel"
     JOB_NAME="${JOB_NAME}_p" ;;
   false)
+    # TODO: in the future hvd with parallel flag and the following will make sense.
+    # Now is just confusing.
     ENV_VARS="${ENV_VARS}
 export CUDA_VISIBLE_DEVICES=0" ;;
 esac
@@ -146,7 +157,7 @@ case ${MODE} in
     SAVE_EVERY='15'
     EMA_START='17'
     N_EPOCHS='2'
-    JOB_QUEUE="#SBATCH -p ${TEST_Q}"
+    JOB_QUEUE=""
     JOB_TIME='#SBATCH --time=0-00:15:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
@@ -158,7 +169,7 @@ fi
     ADD_ARGS="${ADD_ARGS} \${RESUME}"
     ;;
   full)
-    N_EPOCHS='10'
+    N_EPOCHS='100'
     JOB_QUEUE=''
     JOB_TIME='#SBATCH --time=1-00:00:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
@@ -173,8 +184,6 @@ fi
   *)
     echo "Wrong mode: long, test, huge."
 esac
-
-JOB_NAME="h_${N_NODES}_${NGPU}_${JOB_NAME}"
 
 DATE=`date '+%d%m%Y%H%M%S'`
 
@@ -203,7 +212,7 @@ ${JOB_ARRAY}
 
 ### Modules and env variables
 source ${PROJ_ROOT}/${SRC}
-${ENV_VARS}
+
 
 ### store job submit script using a unique id:
 if [ -z "\$SLURM_ARRAY_JOB_ID" ]; then
@@ -232,8 +241,8 @@ ${RUN} train.py \\
   --num_epochs ${N_EPOCHS} \\
   ${DATA_ARG}
   --shuffle  --num_workers ${NUM_WORKERS} --batch_size ${BS} \\
-  --num_G_accumulations 1 --num_D_accumulations 1 \\
-  --num_D_steps 1 --G_lr ${G_LR} --D_lr ${D_LR} --D_B2 0.999 --G_B2 0.999 \\
+  --num_G_accumulations ${ACCUM} --num_D_accumulations ${ACCUM} \\
+  --num_D_steps ${D_STEPS} --G_lr ${G_LR} --D_lr ${D_LR} --D_B2 0.999 --G_B2 0.999 \\
   --G_attn 64 --D_attn 64 \\
   --G_nl inplace_relu --D_nl inplace_relu \\
   --SN_eps 1e-6 --BN_eps 1e-5 --adam_eps 1e-6 \\
@@ -251,6 +260,6 @@ ${RUN} train.py \\
 EOF
 
 echo "Submitting job ${JOB_NAME}"
-echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh"
+echo "Submission script: ${SUBSCRIPTS_DIR}/run.sh.${DATE}"
 echo "Output: ${OUTPUT_DIR}/${JOB_NAME}"
 sbatch ${SUBSCRIPTS_DIR}/run.sh.${DATE}
