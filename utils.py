@@ -591,6 +591,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   # using validation / test splits.
   loaders = []   
   random.seed(0)
+  # TODO: Integrate multiepoch_sampler with hvd
   # if use_multiepoch_sampler:
   #   print('Using multiepoch sampler from start_itr %d...' % start_itr)
   #   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
@@ -598,17 +599,13 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   #   train_loader = DataLoader(train_set, batch_size=batch_size,
   #                             sampler=sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
   # else:
-  #   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
-  #                    'drop_last': drop_last} # Default, drop last incomplete batch
-  #   train_loader = DataLoader(train_set, batch_size=batch_size,
-  #                             shuffle=shuffle, worker_init_fn=np.random.seed(0), **loader_kwargs)
-  loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
+  loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
+                   'drop_last': drop_last} # Default, drop last incomplete batch
   train_sampler = DistributedSampler(train_set, num_replicas=hvd.size(),
                                     rank=hvd.rank())
   train_loader = DataLoader(train_set, batch_size=batch_size,
                             sampler=train_sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
   if hvd.rank() == 0:
-    print('multiepoch sampler has been ignored.. TODO: if needed make it compatible with hvd')
     print('len(train_set) = %d' % len(train_set))
     print('len(train_sampler) = %d' % len(train_sampler))
 
