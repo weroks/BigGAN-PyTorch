@@ -789,7 +789,7 @@ def save_weights(G, D, state_dict, weights_root, experiment_name,
               '%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
 
 # Load a model's weights, optimizer, and the state_dict
-def load_weights(G, D, state_dict, weights_root, experiment_name, 
+def load_weights_original(G, D, state_dict, weights_root, experiment_name, 
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
   root = '/'.join([weights_root, experiment_name])
   if hvd.rank() == 0:
@@ -818,6 +818,40 @@ def load_weights(G, D, state_dict, weights_root, experiment_name,
     G_ema.load_state_dict(
       torch.load('%s/%s.pth' % (root, join_strings('_', ['G_ema', name_suffix]))),
       strict=strict)
+
+ 
+def load_weights(G, D, state_dict, weights_root, experiment_name, 
+                 name_suffix=None, G_ema=None, strict=True, load_optim=True):
+  root = '/'.join([weights_root, experiment_name])
+  if hvd.rank() == 0:
+    if name_suffix:
+      print('Loading %s weights from %s...' % (name_suffix, root))
+    else:
+      print('Loading weights from %s...' % root)
+  if G is not None:
+    for key in G.state_dict():
+      G.state_dict()[key] = (
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['G', key, name_suffix])))
+        )
+    if load_optim:
+      G.optim.load_state_dict(
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['G_optim', name_suffix]))))
+  if D is not None:
+    for key in D.state_dict():
+      D.state_dict()[key] = (
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['D', key, name_suffix])))
+        )
+    if load_optim:
+      D.optim.load_state_dict(
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['D_optim', name_suffix]))))
+  # Load state dict
+  for item in state_dict:
+    state_dict[item] = torch.load('%s/%s.pth' % (root, join_strings('_', ['state_dict', name_suffix])))[item]
+  if G_ema is not None:
+    for key in G_ema.state_dict():
+      G_ema.state_dict()[key] = (
+        torch.load('%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
+        )
 
 
 ''' MetricsLogger originally stolen from VoxNet source code.
