@@ -151,17 +151,18 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                      folder_number=state_dict['itr'],
                      z_=z_)
   # Also save interp sheets
-  for fix_z, fix_y in zip([False, False, True], [False, True, False]):
-    utils.interp_sheet(which_G,
-                       num_per_sheet=16,
-                       num_midpoints=8,
-                       num_classes=config['n_classes'],
-                       parallel=config['parallel'],
-                       samples_root=config['samples_root'],
-                       experiment_name=experiment_name,
-                       folder_number=state_dict['itr'],
-                       sheet_number=0,
-                       fix_z=fix_z, fix_y=fix_y, device='cuda')
+  for i, (fix_z, fix_y) in enumerate(zip([False, False, True], [False, True, False])):
+    if i % hvd.size() == hvd.rank():
+      utils.interp_sheet(which_G,
+                        num_per_sheet=16,
+                        num_midpoints=8,
+                        num_classes=config['n_classes'],
+                        parallel=config['parallel'],
+                        samples_root=config['samples_root'],
+                        experiment_name=experiment_name,
+                        folder_number=state_dict['itr'],
+                        sheet_number=0,
+                        fix_z=fix_z, fix_y=fix_y, device='cuda')
 
   
 ''' This function runs the inception metrics code, checks if the results

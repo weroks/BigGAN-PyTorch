@@ -114,7 +114,7 @@ case $PARALLEL in
     # TODO: in the future hvd with parallel flag and the following will make sense.
     # Now is just confusing.
     ENV_VARS="${ENV_VARS}
-export CUDA_VISIBLE_DEVICES=0" ;;
+# export CUDA_VISIBLE_DEVICES=0" ;;
 esac
 
 case $(hostname) in

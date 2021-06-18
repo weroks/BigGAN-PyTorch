@@ -1035,9 +1035,7 @@ def interp(x0, x1, num_midpoints):
 def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
                  samples_root, experiment_name, folder_number, sheet_number=0,
                  fix_z=False, fix_y=False, device='cuda'):
-  ### TODO: Works with size 1,2,4,8,16...
-  num_per_sheet = num_per_sheet//hvd.size()
-
+  ### TODO: This can be parallelized
   # Prepare zs and ys
   if fix_z: # If fix Z, only sample 1 z per row
     zs = torch.randn(num_per_sheet, 1, G.dim_z, device=device)
@@ -1062,15 +1060,14 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
       out_ims = nn.parallel.data_parallel(G, (zs, ys)).data.cpu()
     else:
       out_ims = G(zs, ys).data.cpu()
-  out_ims = hvd.allgather(out_ims, "out_ims")
-  if hvd.rank() == 0:
-    # gather all images to rank 0
-    interp_style = '' + ('Z' if not fix_z else '') + ('Y' if not fix_y else '')
-    image_filename = '%s/%s/%d/interp%s%d.jpg' % (samples_root, experiment_name,
-                                                  folder_number, interp_style,
-                                                  sheet_number)
-    torchvision.utils.save_image(out_ims, image_filename,
-                                nrow=num_midpoints + 2, normalize=True)
+
+  # gather all images to rank 0
+  interp_style = '' + ('Z' if not fix_z else '') + ('Y' if not fix_y else '')
+  image_filename = '%s/%s/%d/interp%s%d.jpg' % (samples_root, experiment_name,
+                                                folder_number, interp_style,
+                                                sheet_number)
+  torchvision.utils.save_image(out_ims, image_filename,
+                              nrow=num_midpoints + 2, normalize=True)
 
 
 # Convenience debugging function to print out gradnorms and shape from each layer
