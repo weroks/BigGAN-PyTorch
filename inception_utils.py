@@ -21,9 +21,6 @@ import torch.nn.functional as F
 from torch.nn import Parameter as P
 from torchvision.models.inception import inception_v3
 
-import horovod.torch as hvd
-
-
 
 # Module that wraps the inception network to enable use with dataparallel and
 # returning pool features and logits.
@@ -269,11 +266,6 @@ def load_inception_net(parallel=False):
     inception_model = nn.DataParallel(inception_model)
   return inception_model
 
-def metric_average(val, name):
-    tensor = torch.tensor(val)
-    avg_tensor = hvd.allreduce(tensor, name=name)
-    return avg_tensor.item()
-
 
 # This produces a function which takes in an iterator which returns a set number of samples
 # and iterates until it accumulates config['num_inception_images'] images.
@@ -290,25 +282,22 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
   net = load_inception_net(parallel)
   def get_inception_metrics(sample, num_inception_images, num_splits=10, 
                             prints=True, use_torch=True):
-    if prints and hvd.rank() == 0:
+    if prints:
       print('Gathering activations...')
-    num_inception_images = num_inception_images // hvd.size()
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
-    if prints and hvd.rank() == 0:
+    if prints:  
       print('Calculating Inception Score...')
     IS_mean, IS_std = calculate_inception_score(logits.cpu().numpy(), num_splits)
-    IS_mean = metric_average(IS_mean, 'IS_mean')
-    IS_std = metric_average(IS_std, 'IS_std')
     if no_fid:
       FID = 9999.0
     else:
-      if prints and hvd.rank() == 0:
+      if prints:
         print('Calculating means and covariances...')
       if use_torch:
         mu, sigma = torch.mean(pool, 0), torch_cov(pool, rowvar=False)
       else:
         mu, sigma = np.mean(pool.cpu().numpy(), axis=0), np.cov(pool.cpu().numpy(), rowvar=False)
-      if prints and hvd.rank() == 0:
+      if prints:
         print('Covariances calculated, getting FID...')
       if use_torch:
         FID = torch_calculate_frechet_distance(mu, sigma, torch.tensor(data_mu).float().cuda(), torch.tensor(data_sigma).float().cuda())

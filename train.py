@@ -210,8 +210,7 @@ def run(config):
       metrics = train(x, y)
       if hvd.rank() == 0:
         train_log.log(itr=int(state_dict['itr']), **metrics)
-        if i == 0:
-          print("G_batch_size %d,\tD_batch_size %d,\tx.shape %s,\ty.shape %s"%(G_batch_size , D_batch_size, x.shape, y.shape) )
+
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
         if hvd.rank() == 0:

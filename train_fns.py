@@ -177,8 +177,14 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
   IS_mean, IS_std, FID = get_inception_metrics(sample, 
-                                               config['num_inception_images'],
-                                               num_splits=10)
+                                               config['num_inception_images'] // hvd.size(),
+                                               num_splits=10,
+                                               prints=hvd.rank()==0)
+  # All reduce
+  IS_mean = hvd.allreduce(torch.tensor(IS_mean), 'IS_mean').item()
+  IS_std = hvd.allreduce(torch.tensor(IS_std), 'IS_std').item()
+  FID = hvd.allreduce(torch.tensor(FID), 'FID').item()
+
   if hvd.rank() == 0:
     print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID), flush=True)
     # If improved over previous best metric, save approrpiate copy
