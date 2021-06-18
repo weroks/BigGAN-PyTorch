@@ -730,7 +730,7 @@ def join_strings(base_string, strings):
 
 
 # Save a model's weights, optimizer, and the state_dict
-def save_weights_original(G, D, state_dict, weights_root, experiment_name, 
+def save_weights(G, D, state_dict, weights_root, experiment_name, 
                  name_suffix=None, G_ema=None):
   root = '/'.join([weights_root, experiment_name])
   if not os.path.exists(root):
@@ -754,7 +754,7 @@ def save_weights_original(G, D, state_dict, weights_root, experiment_name,
                 '%s/%s.pth' % (root, join_strings('_', ['G_ema', name_suffix])))
 
 # Alternative for saving weights to avoid Memory Error
-def save_weights(G, D, state_dict, weights_root, experiment_name, 
+def save_weights_alternative(G, D, state_dict, weights_root, experiment_name, 
                          name_suffix=None, G_ema=None):
   root = '/'.join([weights_root, experiment_name])
   if not os.path.exists(root):
@@ -786,7 +786,7 @@ def save_weights(G, D, state_dict, weights_root, experiment_name,
               '%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
 
 # Load a model's weights, optimizer, and the state_dict
-def load_weights_original(G, D, state_dict, weights_root, experiment_name, 
+def load_weights(G, D, state_dict, weights_root, experiment_name, 
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
   root = '/'.join([weights_root, experiment_name])
   if hvd.rank() == 0:
@@ -817,7 +817,7 @@ def load_weights_original(G, D, state_dict, weights_root, experiment_name,
       strict=strict)
 
  
-def load_weights(G, D, state_dict, weights_root, experiment_name, 
+def load_weights_alternative(G, D, state_dict, weights_root, experiment_name, 
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
   root = '/'.join([weights_root, experiment_name])
   if hvd.rank() == 0:
@@ -849,6 +849,8 @@ def load_weights(G, D, state_dict, weights_root, experiment_name,
       G_ema.state_dict()[key] = (
         torch.load('%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
         )
+  torch.cuda.empty_cache()
+
 
 
 ''' MetricsLogger originally stolen from VoxNet source code.
