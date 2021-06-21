@@ -115,11 +115,6 @@ def run(config):
                        config['load_weights'] if config['load_weights'] else None,
                        G_ema if config['ema'] else None)
 
-  # If parallel, parallelize the GD module
-  if config['parallel']:
-    GD = nn.DataParallel(GD)
-    if config['cross_replica']:
-      patch_replication_callback(GD)
 
   # Prepare loggers for stats; metrics holds test metrics,
   # lmetrics holds any desired training metrics.
@@ -154,7 +149,9 @@ def run(config):
     n_epochs = 1
 
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
+  get_inception_metrics = inception_utils.prepare_inception_metrics(dataset=config['dataset'],
+                                                                    parallel=False,
+                                                                    no_fid=config['no_fid'])
 
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G

@@ -192,9 +192,6 @@ def prepare_parser():
     '--num_epochs', type=int, default=100,
     help='Number of epochs to train for (default: %(default)s)')
   parser.add_argument(
-    '--parallel', action='store_true', default=False,
-    help='Train with multiple GPUs (default: %(default)s)')
-  parser.add_argument(
     '--G_fp16', action='store_true', default=False,
     help='Train with half-precision in G? (default: %(default)s)')
   parser.add_argument(
@@ -982,10 +979,7 @@ def sample(G, z_, y_, config):
   with torch.no_grad():
     z_.sample_()
     y_.sample_()
-    if config['parallel']:
-      G_z =  nn.parallel.data_parallel(G, (z_, G.shared(y_)))
-    else:
-      G_z = G(z_, G.shared(y_))
+    G_z = G(z_, G.shared(y_))
     return G_z, y_
 
 
@@ -1007,10 +1001,7 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
         else:
           z_ = torch.randn(classes_per_sheet, G.dim_z, device='cuda')        
         with torch.no_grad():
-          if parallel:
-            o = nn.parallel.data_parallel(G, (z_[:classes_per_sheet], G.shared(y)))
-          else:
-            o = G(z_[:classes_per_sheet], G.shared(y))
+          o = G(z_[:classes_per_sheet], G.shared(y))
 
         ims += [o.data.cpu()]
       # This line should properly unroll the images
@@ -1056,9 +1047,6 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
   if G.fp16:
     zs = zs.half()
   with torch.no_grad():
-    if parallel:
-      out_ims = nn.parallel.data_parallel(G, (zs, ys)).data.cpu()
-    else:
       out_ims = G(zs, ys).data.cpu()
 
   # gather all images to rank 0

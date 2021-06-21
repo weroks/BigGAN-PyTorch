@@ -128,14 +128,10 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
   
     # Save a random sample sheet with fixed z and y      
   with torch.no_grad():
-    if config['parallel']:
-      fixed_Gz =  nn.parallel.data_parallel(which_G, (fixed_z, which_G.shared(fixed_y)))
-    else:
-      fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
+    fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
   fixed_Gz = hvd.allgather(fixed_Gz)
   if hvd.rank() == 0:
-    if not os.path.isdir('%s/%s' % (config['samples_root'], experiment_name)):
-      os.mkdir('%s/%s' % (config['samples_root'], experiment_name))
+    os.makedirs('%s/%s' % (config['samples_root'], experiment_name), exist_ok=True)
     image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 
                                                     experiment_name,
                                                     state_dict['itr'])
@@ -145,24 +141,25 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
   utils.sample_sheet(which_G,
                      classes_per_sheet=utils.classes_per_sheet_dict[config['dataset']],
                      num_classes=config['n_classes'],
-                     samples_per_class=10, parallel=config['parallel'],
+                     samples_per_class=10, parallel=False,
                      samples_root=config['samples_root'],
                      experiment_name=experiment_name,
                      folder_number=state_dict['itr'],
                      z_=z_)
+  # TODO: Currently this causes OOM when reloading
   # Also save interp sheets
-  for i, (fix_z, fix_y) in enumerate(zip([False, False, True], [False, True, False])):
-    if i % hvd.size() == hvd.rank():
-      utils.interp_sheet(which_G,
-                        num_per_sheet=16,
-                        num_midpoints=8,
-                        num_classes=config['n_classes'],
-                        parallel=config['parallel'],
-                        samples_root=config['samples_root'],
-                        experiment_name=experiment_name,
-                        folder_number=state_dict['itr'],
-                        sheet_number=0,
-                        fix_z=fix_z, fix_y=fix_y, device='cuda')
+  # for i, (fix_z, fix_y) in enumerate(zip([False, False, True], [False, True, False])):
+  #   if hvd.rank() == 0:
+  #     utils.interp_sheet(which_G,
+  #                       num_per_sheet=16,
+  #                       num_midpoints=8,
+  #                       num_classes=config['n_classes'],
+  #                       parallel=False,
+  #                       samples_root=config['samples_root'],
+  #                       experiment_name=experiment_name,
+  #                       folder_number=state_dict['itr'],
+  #                       sheet_number=0,
+  #                       fix_z=fix_z, fix_y=fix_y, device=torch.cuda.current_device())
 
   
 ''' This function runs the inception metrics code, checks if the results

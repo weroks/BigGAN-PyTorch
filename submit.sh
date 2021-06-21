@@ -25,7 +25,7 @@ EMA_START='20000'
 # OTHER VARS
 ENV_VARS=''
 ADD_ARGS=''
-JOB_ARR_LENGTH='0'
+JOB_ARR_LENGTH='1'
 
 
 print_usage() {
@@ -158,7 +158,7 @@ case ${MODE} in
     EMA_START='17'
     N_EPOCHS='2'
     JOB_QUEUE=""
-    JOB_TIME='#SBATCH --time=0-00:15:00'
+    JOB_TIME='#SBATCH --time=0-00:10:00'
     JOB_ARRAY="#SBATCH --array=0-${JOB_ARR_LENGTH}%1"
     JOB_NAME_EXT="%A_%a"
     RESUME_CHECKPOINTS="
