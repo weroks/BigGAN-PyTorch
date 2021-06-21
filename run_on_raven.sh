@@ -48,7 +48,7 @@ srun python train.py \
   --samples_root $SAMPLE_ROOT \
   --num_epochs 100 \
   --dataset E256_hdf5 \
-  --shuffle  --num_workers 8 --batch_size 704 \
+  --shuffle  --num_workers 8 --batch_size 640 \
   --num_G_accumulations 1 --num_D_accumulations 1 \
   --num_D_steps 2 --G_lr 4e-4 --D_lr 1.6e-3 --D_B2 0.999 --G_B2 0.999 \
   --G_attn 64 --D_attn 64 \

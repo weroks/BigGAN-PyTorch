@@ -6,7 +6,6 @@ BS='34'
 MODE='long'
 NUM_WORKERS='8'
 MONITORING="sys"
-PARALLEL="false"
 SEED='0'
 G_LR='1e-4'
 D_LR='4e-4'
@@ -42,12 +41,11 @@ print_usage() {
  -s <int> seed;
  -o <string> Output root directory;
  -t <string> Monitoring tool (sys | usr | pt);
- -p Use all GPUs with DataParallel;
  -r resume from previous checkpoint.
  "
 }
 
-while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:pr' flag; do
+while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:r' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     N) N_NODES="${OPTARG}" ;;
@@ -61,7 +59,6 @@ while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:pr' flag; do
     s) SEED="${OPTARG}" ;;
     t) MONITORING="${OPTARG}" ;;
     o) OUT_ROOT="${OPTARG}" ;;
-    p) PARALLEL="true" ;;
     r) ADD_ARGS="${ADD_ARGS} --resume" ;;
     *) print_usage
        exit 1 ;;
@@ -104,17 +101,6 @@ case $MONITORING in
   pt) RUN="srun hpcmd_suspend python -m torch.utils.bottleneck" ;;
   *) echo "Worng monitoring tool. Available: sys, usr, pt."
      exit 2 ;;
-esac
-
-case $PARALLEL in
-  true)
-    ADD_ARGS="${ADD_ARGS} --parallel"
-    JOB_NAME="${JOB_NAME}_p" ;;
-  false)
-    # TODO: in the future hvd with parallel flag and the following will make sense.
-    # Now is just confusing.
-    ENV_VARS="${ENV_VARS}
-# export CUDA_VISIBLE_DEVICES=0" ;;
 esac
 
 case $(hostname) in

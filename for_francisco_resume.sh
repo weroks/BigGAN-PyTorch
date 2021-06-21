@@ -1,6 +1,6 @@
 #!/bin/bash
 python train.py \
-	--dataset E256_hdf5 --parallel --shuffle  --num_workers 8 --batch_size 256 --load_in_mem  \
+	--dataset E256_hdf5 --shuffle  --num_workers 8 --batch_size 256 --load_in_mem  \
 	--num_G_accumulations 16 --num_D_accumulations 16 \
 	--num_D_steps 1 --G_lr 1e-4 --D_lr 4e-4 --D_B2 0.999 --G_B2 0.999 \
 	--G_attn 64 --D_attn 64 \

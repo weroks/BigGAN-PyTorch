@@ -167,7 +167,7 @@ def prepare_parser():
     '--D_B2', type=float, default=0.999,
     help='Beta2 to use for Discriminator (default: %(default)s)')
     
-  ### Batch size, parallel, and precision stuff ###
+  ### Batch size and precision stuff ###
   parser.add_argument(
     '--batch_size', type=int, default=64,
     help='Default overall batchsize (default: %(default)s)')
