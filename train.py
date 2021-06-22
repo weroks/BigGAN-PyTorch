@@ -50,7 +50,8 @@ def run(config):
   config['D_activation'] = utils.activation_dict[config['D_nl']]
   # By default, skip init if resuming training.
   if config['resume']:
-    print('Skipping initialization for training resumption...')
+    if hvd.rank() == 0:
+      print('Skipping initialization for training resumption...')
     config['skip_init'] = True
   config = utils.update_config_roots(config)
   device = 'cuda'
@@ -110,11 +111,21 @@ def run(config):
   if config['resume']:
     if hvd.rank() == 0:
       print('Loading weights...')
-    utils.load_weights(G, D, state_dict,
-                       config['weights_root'], experiment_name, 
-                       config['load_weights'] if config['load_weights'] else None,
-                       G_ema if config['ema'] else None)
+      utils.load_weights(G, D, state_dict,
+                        config['weights_root'], experiment_name, 
+                        config['load_weights'] if config['load_weights'] else None,
+                        G_ema if config['ema'] else None)
+    else:
+      root = '/'.join([config['weights_root'], experiment_name])
+      name_suffix = config['load_weights'] if config['load_weights'] else None
+      for item in state_dict:
+        state_dict[item] = torch.load('%s/%s.pth' % (root, utils.join_strings('_', ['state_dict', name_suffix])))[item]
 
+  hvd.broadcast_parameters(G.state_dict(), root_rank=0)
+  hvd.broadcast_parameters(D.state_dict(), root_rank=0)
+  hvd.broadcast_parameters(G_ema.state_dict(), root_rank=0)
+  hvd.broadcast_optimizer_state(G.optim, root_rank=0)
+  hvd.broadcast_optimizer_state(D.optim, root_rank=0)
 
   # Prepare loggers for stats; metrics holds test metrics,
   # lmetrics holds any desired training metrics.
