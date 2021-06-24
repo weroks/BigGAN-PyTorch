@@ -4,7 +4,7 @@
 DATASET='small_E256'
 BS='34'
 MODE='long'
-NUM_WORKERS='8'
+NUM_WORKERS='0'
 MONITORING="sys"
 SEED='0'
 G_LR='1e-4'
