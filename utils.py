@@ -410,7 +410,8 @@ dset_dict = {'I32': dset.ImageFolder, 'I64': dset.ImageFolder,
              'C10': dset.CIFAR10, 'C100': dset.CIFAR100,
              'ES128': dset.ImageFolder, 'ES128_hdf5': dset.ILSVRC_HDF5,
              'E256': dset.ImageFolder, 'E256_hdf5': dset.ILSVRC_HDF5,
-             'small_E256_hdf5': dset.ILSVRC_HDF5}
+             'small_E256_hdf5': dset.ILSVRC_HDF5,
+             'ecoset_cs100': dset.ILSVRC_HDF5,'ecoset_cs500': dset.ILSVRC_HDF5}
 imsize_dict = {'I32': 32, 'I32_hdf5': 32,
                'I64': 64, 'I64_hdf5': 64,
                'I128': 128, 'I128_hdf5': 128,
@@ -418,7 +419,8 @@ imsize_dict = {'I32': 32, 'I32_hdf5': 32,
                'C10': 32, 'C100': 32,
                'ES128': 128, 'ES128_hdf5': 128,
                'E256': 256, 'E256_hdf5': 256,
-               'small_E256_hdf5': 256}
+               'small_E256_hdf5': 256,
+               'ecoset_cs100': 256,'ecoset_cs500': 256}
 root_dict = {'I32': 'ImageNet', 'I32_hdf5': 'ILSVRC32.hdf5',
              'I64': 'ImageNet', 'I64_hdf5': 'ILSVRC64.hdf5',
              'I128': 'ImageNet', 'I128_hdf5': 'ILSVRC128.hdf5',
@@ -426,7 +428,8 @@ root_dict = {'I32': 'ImageNet', 'I32_hdf5': 'ILSVRC32.hdf5',
              'C10': 'cifar', 'C100': 'cifar',
              'ES128': 'train', 'ES128_hdf5': 'ILSVRC128.hdf5',
              'E256': 'ecoset', 'E256_hdf5': 'E256.hdf5',
-             'small_E256_hdf5': 'small_E256.hdf5'}
+             'small_E256_hdf5': 'small_E256.hdf5',
+             'ecoset_cs100': 'ecoset_cs100.hdf5','ecoset_cs500': 'ecoset_cs500.hdf5'}
 nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'I64': 1000, 'I64_hdf5': 1000,
                'I128': 1000, 'I128_hdf5': 1000,
@@ -434,7 +437,8 @@ nclass_dict = {'I32': 1000, 'I32_hdf5': 1000,
                'C10': 10, 'C100': 100,
                'ES128': 3, 'ES128_hdf5': 3,
                'E256': 565, 'E256_hdf5': 565,
-               'small_E256_hdf5': 565}
+               'small_E256_hdf5': 565,
+               'ecoset_cs100': 565, 'ecoset_cs500': 565}
 # Number of classes to put per sample sheet               
 classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I64': 50, 'I64_hdf5': 50,
@@ -443,7 +447,8 @@ classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'C10': 10, 'C100': 100,
                           'ES128': 3, 'ES128_hdf5': 3,
                           'E256': 20, 'E256_hdf5': 20,
-                          'small_E256_hdf5': 20}
+                          'small_E256_hdf5': 20,
+                          'ecoset_cs100': 20, 'ecoset_cs500': 20}
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
                    'ir': nn.ReLU(inplace=True)}

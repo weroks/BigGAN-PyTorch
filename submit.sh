@@ -24,7 +24,7 @@ EMA_START='20000'
 # OTHER VARS
 ENV_VARS=''
 ADD_ARGS=''
-JOB_ARR_LENGTH='1'
+JOB_ARR_LENGTH='0'
 
 
 print_usage() {
@@ -89,6 +89,10 @@ case ${DATASET} in
     DATA_ARG="--dataset E256_hdf5 \\" ;;
   small_E256)
     DATA_ARG="--dataset small_E256_hdf5 --load_in_mem \\" ;;
+  ecoset_cs100)
+    DATA_ARG="--dataset ecoset_cs100 \\" ;;
+  ecoset_cs500)
+    DATA_ARG="--dataset ecoset_cs500 \\" ;;
   *)
     echo "Wrong dataset name"
     exit 1

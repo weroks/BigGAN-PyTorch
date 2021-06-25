@@ -146,7 +146,6 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                      experiment_name=experiment_name,
                      folder_number=state_dict['itr'],
                      z_=z_)
-  # TODO: Currently this causes OOM when reloading
   # Also save interp sheets
   for i, (fix_z, fix_y) in enumerate(zip([False, False, True], [False, True, False])):
     if i % (hvd.size() - 1) == hvd.rank():
