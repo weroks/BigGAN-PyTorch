@@ -57,7 +57,7 @@ def run(config):
   device = 'cuda'
   
   # Seed RNG
-  utils.seed_rng(config['seed'])
+  utils.seed_rng(config['seed'] + hvd.rank())
 
   # Prepare root folders if necessary
   if hvd.rank() == 0:

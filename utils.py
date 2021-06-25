@@ -591,8 +591,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
 
   # Prepare loader; the loaders list is for forward compatibility with
   # using validation / test splits.
-  loaders = []   
-  random.seed(0)
+  loaders = []
   # TODO: Integrate multiepoch_sampler with hvd
   # if use_multiepoch_sampler:
   #   print('Using multiepoch sampler from start_itr %d...' % start_itr)
@@ -604,9 +603,9 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
                    'drop_last': drop_last} # Default, drop last incomplete batch
   train_sampler = DistributedSampler(train_set, num_replicas=hvd.size(),
-                                    rank=hvd.rank())
+                                    rank=hvd.rank(), shuffle=True, seed=0)
   train_loader = DataLoader(train_set, batch_size=batch_size,
-                            sampler=train_sampler, worker_init_fn=np.random.seed(0), **loader_kwargs)
+                            sampler=train_sampler, **loader_kwargs)
   if hvd.rank() == 0:
     print('len(train_set) = %d' % len(train_set))
     print('len(train_sampler) = %d' % len(train_sampler))
