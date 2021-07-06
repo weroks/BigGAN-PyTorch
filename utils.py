@@ -59,6 +59,9 @@ def prepare_parser():
     '--load_in_mem', action='store_true', default=False,
     help='Load all data into memory? (default: %(default)s)')
   parser.add_argument(
+    '--copy_in_mem', action='store_true', default=False,
+    help='Copy dataset in /dev/shm/ (default: %(default)s)')
+  parser.add_argument(
     '--use_multiepoch_sampler', action='store_true', default=False,
     help='Use the multi-epoch sampler for dataloader? (default: %(default)s)')
   
@@ -542,6 +545,10 @@ class MultiEpochSampler(torch.utils.data.Sampler):
   def __len__(self):
     return len(self.data_source) * self.num_epochs - self.start_itr * self.batch_size
 
+def copy_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
+  from shutil import copy
+  if hvd.local_rank() == 0:
+      copy(os.path.join(data_root, root_dict[dataset]), mem_folder)
 
 # Convenience function to centralize all data loaders
 def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64, 
@@ -1090,7 +1097,9 @@ def name_from_config(config):
   item for item in [
   'Big%s' % config['which_train_fn'],
   config['dataset'],
+  '_mem' if config["copy_in_mem"] else None,
   config['model'] if config['model'] != 'BigGAN' else None,
+  'w%d' % config['num_workers'],
   'seed%d' % config['seed'],
   'Gch%d' % config['G_ch'],
   'Dch%d' % config['D_ch'],

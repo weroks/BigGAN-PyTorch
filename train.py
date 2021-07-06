@@ -275,6 +275,9 @@ def main():
   if hvd.rank() == 0:
     print(config)
 
+  if config["copy_in_mem"]:
+    utils.copy_data_in_mem(**config)
+
   sys.stdout.flush()
   sys.stderr.flush()
   run(config)

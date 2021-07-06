@@ -14,7 +14,7 @@ ACCUM="1"
 N_NODES='1'
 DATA_ROOT="/ptmp/pierocor/datasets"
 # OUT_ROOT="${PROJ_ROOT}/tmp"
-OUT_ROOT="/ptmp/pierocor/BigGan_out/hvd"
+OOUT_ROOT="/ptmp/pierocor/hvd_out"
 
 # DEFAULT TRAINING VALUES
 TEST_EVERY='1000'
@@ -40,12 +40,14 @@ print_usage() {
  -w <int> number of workers for DataLoader;
  -s <int> seed;
  -o <string> Output root directory;
+ -e <string> Extra arguments;
  -t <string> Monitoring tool (sys | usr | pt);
+ -i copy dataset in /dev/shm/
  -r resume from previous checkpoint.
  "
 }
 
-while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:r' flag; do
+while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:e:r:i' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     N) N_NODES="${OPTARG}" ;;
@@ -59,7 +61,9 @@ while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:r' flag; do
     s) SEED="${OPTARG}" ;;
     t) MONITORING="${OPTARG}" ;;
     o) OUT_ROOT="${OPTARG}" ;;
+    e) ADD_ARGS="${ADD_ARGS} ${OPTARG}" ;;
     r) ADD_ARGS="${ADD_ARGS} --resume" ;;
+    i) ADD_ARGS="${ADD_ARGS} --copy_in_mem" ;;
     *) print_usage
        exit 1 ;;
   esac
@@ -197,8 +201,8 @@ ${JOB_ARRAY}
 #SBATCH --threads-per-core=1
 
 ### Debug and Analytics
-# export NCCL_DEBUG=INFO
-# export PYTHONFAULTHANDLER=1
+export NCCL_DEBUG=INFO
+export PYTHONFAULTHANDLER=1
 
 ### Modules and env variables
 source ${PROJ_ROOT}/${SRC}
