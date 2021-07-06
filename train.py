@@ -32,8 +32,14 @@ from sync_batchnorm import patch_replication_callback
 
 import random
 import sys
+import signal
 from datetime import datetime
 
+interrupted = False
+def signal_handler(signum, frame):
+  print('Rank %d got signal %s.'%(hvd.rank(), signum), flush=True)
+  global interrupted
+  interrupted = True
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
@@ -248,9 +254,31 @@ def run(config):
         if config['G_eval_mode']:
           if hvd.rank() == 0:
             print('Switchin G to eval mode...')
-            G.eval()
+          G.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                         get_inception_metrics, experiment_name, test_log)
+
+      # If job has been interrupted save and clean env
+      if interrupted:
+        if hvd.rank() == 0:
+          print('Interrupting training. Save, test and remove files if needed....', flush=True)
+        if config['G_eval_mode']:
+          if hvd.rank() == 0:
+            print('Switchin G to eval mode...')
+          G.eval()
+          if config['ema']:
+            G_ema.eval()
+        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+                                    state_dict, config, experiment_name)
+        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                        get_inception_metrics, experiment_name, test_log)
+        if config["copy_in_mem"]:
+          utils.copy_data_in_mem(**config)
+        if hvd.rank() == 0:
+          now = datetime.now()
+          dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+          print('%s - Done.' % dt_string, flush=True)
+        break
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
@@ -278,6 +306,10 @@ def main():
   if config["copy_in_mem"]:
     utils.copy_data_in_mem(**config)
 
+  # Register the signal handler
+  signal.signal(signal.SIGUSR1, signal_handler)
+  signal.signal(signal.SIGTERM, signal_handler)
+  signal.signal(signal.SIGINT, signal_handler)
   sys.stdout.flush()
   sys.stderr.flush()
   run(config)

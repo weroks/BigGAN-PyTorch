@@ -18,6 +18,8 @@ import pickle
 from argparse import ArgumentParser
 import animal_hash
 import random
+import signal
+from shutil import copy
 
 import torch
 import torch.nn as nn
@@ -500,7 +502,6 @@ class RandomCropLongEdge(object):
   def __repr__(self):
     return self.__class__.__name__
 
-    
 # multi-epoch Dataset sampler to avoid memory leakage and enable resumption of
 # training from the same sample regardless of if we stop mid-epoch
 class MultiEpochSampler(torch.utils.data.Sampler):
@@ -545,10 +546,17 @@ class MultiEpochSampler(torch.utils.data.Sampler):
   def __len__(self):
     return len(self.data_source) * self.num_epochs - self.start_itr * self.batch_size
 
-def copy_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
-  from shutil import copy
+def rm_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
   if hvd.local_rank() == 0:
-      copy(os.path.join(data_root, root_dict[dataset]), mem_folder)
+    filename = os.path.join(mem_folder, root_dict[dataset])
+    os.remove(filename)
+    print("Rank %d - removed %s"%(hvd.rank(), filename))
+
+def copy_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
+  if hvd.local_rank() == 0:
+    filename = os.path.join(data_root, root_dict[dataset])
+    copy(filename, mem_folder)
+    print("Rank %d - copied %s in %s"%(hvd.rank(), filename, mem_folder))
 
 # Convenience function to centralize all data loaders
 def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64, 

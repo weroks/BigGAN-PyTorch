@@ -199,6 +199,7 @@ ${JOB_ARRAY}
 #SBATCH --ntasks-per-node=${NGPU}
 #SBATCH --cpus-per-task=${CPUS}
 #SBATCH --threads-per-core=1
+#SBATCH --signal=USR1@360
 
 ### Debug and Analytics
 export NCCL_DEBUG=INFO
@@ -249,8 +250,12 @@ ${RUN} train.py \\
   --ema --use_ema --ema_start ${EMA_START} \\
   --test_every ${TEST_EVERY} --save_every ${SAVE_EVERY} \\
   --num_best_copies 5 --num_save_copies 2 \\
-  --seed ${SEED} ${ADD_ARGS}
+  --seed ${SEED} ${ADD_ARGS} &
 
+### Wait python program
+wait
+echo "Batch script END!"
+l /dev/shm/
 EOF
 
 echo "Submitting job ${JOB_NAME}"
