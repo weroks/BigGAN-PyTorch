@@ -35,16 +35,16 @@ import sys
 import signal
 from datetime import datetime
 
-interrupted = False
+interrupted = torch.tensor(0)
 def signal_handler(signum, frame):
-  print('Rank %d got signal %s.'%(hvd.rank(), signum), flush=True)
-  global interrupted
-  interrupted = True
+  if hvd.rank() == 0:
+    print('Rank %d got signal %d.'%(hvd.rank(), signum), flush=True)
+    global interrupted
+    interrupted = torch.tensor(signum)
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
 def run(config):
-
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
   # configuration into the config-dict (e.g. inferring the number of classes
@@ -259,9 +259,13 @@ def run(config):
                         get_inception_metrics, experiment_name, test_log)
 
       # If job has been interrupted save and clean env
-      if interrupted:
+      global interrupted
+      interrupted = hvd.broadcast(interrupted, root_rank=0, name="interrupted")
+      if interrupted.item() != 0:
         if hvd.rank() == 0:
-          print('Interrupting training. Save, test and remove files if needed....', flush=True)
+          now = datetime.now()
+          dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+          print('\n%s - Interrupting training. Save, test and remove files if needed....'%dt_string, flush=True)
         if config['G_eval_mode']:
           if hvd.rank() == 0:
             print('Switchin G to eval mode...')
@@ -273,12 +277,12 @@ def run(config):
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                         get_inception_metrics, experiment_name, test_log)
         if config["copy_in_mem"]:
-          utils.copy_data_in_mem(**config)
+          utils.rm_data_in_mem(**config)
         if hvd.rank() == 0:
           now = datetime.now()
           dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
           print('%s - Done.' % dt_string, flush=True)
-        break
+        sys.exit(0)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 

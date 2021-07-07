@@ -199,7 +199,7 @@ ${JOB_ARRAY}
 #SBATCH --ntasks-per-node=${NGPU}
 #SBATCH --cpus-per-task=${CPUS}
 #SBATCH --threads-per-core=1
-#SBATCH --signal=USR1@360
+#SBATCH --signal=USR1@300
 
 ### Debug and Analytics
 export NCCL_DEBUG=INFO
@@ -255,7 +255,7 @@ ${RUN} train.py \\
 ### Wait python program
 wait
 echo "Batch script END!"
-l /dev/shm/
+ls -atl /dev/shm/
 EOF
 
 echo "Submitting job ${JOB_NAME}"

@@ -18,7 +18,6 @@ import pickle
 from argparse import ArgumentParser
 import animal_hash
 import random
-import signal
 from shutil import copy
 
 import torch
@@ -550,13 +549,13 @@ def rm_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
   if hvd.local_rank() == 0:
     filename = os.path.join(mem_folder, root_dict[dataset])
     os.remove(filename)
-    print("Rank %d - removed %s"%(hvd.rank(), filename))
+    print("Rank %d - removed %s"%(hvd.rank(), filename), flush=True)
 
 def copy_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
   if hvd.local_rank() == 0:
     filename = os.path.join(data_root, root_dict[dataset])
     copy(filename, mem_folder)
-    print("Rank %d - copied %s in %s"%(hvd.rank(), filename, mem_folder))
+    print("Rank %d - copied %s in %s"%(hvd.rank(), filename, mem_folder), flush=True)
 
 # Convenience function to centralize all data loaders
 def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64, 
@@ -583,7 +582,8 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
     train_transform = None
   else:
     if augment:
-      print('Data will be augmented...')
+      if hvd.rank() == 0:
+        print('Data will be augmented...')
       if dataset in ['C10', 'C100']:
         train_transform = [transforms.RandomCrop(32, padding=4),
                            transforms.RandomHorizontalFlip()]
@@ -592,7 +592,8 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
                          transforms.Resize(image_size),
                          transforms.RandomHorizontalFlip()]
     else:
-      print('Data will not be augmented...')
+      if hvd.rank() == 0:
+        print('Data will not be augmented...')
       if dataset in ['C10', 'C100']:
         train_transform = []
       else:
