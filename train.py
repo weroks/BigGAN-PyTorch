@@ -272,16 +272,24 @@ def run(config):
           G.eval()
           if config['ema']:
             G_ema.eval()
-        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
-                                    state_dict, config, experiment_name)
-        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                        get_inception_metrics, experiment_name, test_log)
+        if (state_dict['itr'] % config['save_every']):
+          train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+                                      state_dict, config, experiment_name)
+        else:
+          if hvd.rank() == 0:
+            print('Save and sample already done. Skipping...')
+        if (state_dict['itr'] % config['test_every']):
+          train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                          get_inception_metrics, experiment_name, test_log)
+        else:
+          if hvd.rank() == 0:
+            print('Test already done. Skipping...')
         if config["copy_in_mem"]:
           utils.rm_data_in_mem(**config)
         if hvd.rank() == 0:
           now = datetime.now()
           dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-          print('%s - Done.' % dt_string, flush=True)
+          print('%s - Checkpoint and cleaning done.' % dt_string, flush=True)
         sys.exit(0)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1

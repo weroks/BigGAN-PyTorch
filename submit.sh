@@ -12,9 +12,10 @@ D_LR='4e-4'
 D_STEPS="1"
 ACCUM="1"
 N_NODES='1'
+N_TASKS='4'
 DATA_ROOT="/ptmp/pierocor/datasets"
 # OUT_ROOT="${PROJ_ROOT}/tmp"
-OOUT_ROOT="/ptmp/pierocor/hvd_out"
+OUT_ROOT="/ptmp/pierocor/hvd_out"
 
 # DEFAULT TRAINING VALUES
 TEST_EVERY='1000'
@@ -31,6 +32,7 @@ print_usage() {
   printf "Usage: ./submit.sh
  -m <string> mode (test | long | test_arr | full) (i.e. 10 mins | 3h | array job 10m | array job 24h);
  -N <int> number of nodes;
+ -n <int> number of gpus per node;
  -d <string> dataset (E256 | small_E256);
  -b <int> batch size (default 34);
  -a <int> accumulation (both G and D, default 1);
@@ -47,10 +49,11 @@ print_usage() {
  "
 }
 
-while getopts ':m:N:d:b:a:l:G:D:x:w:s:o:t:e:r:i' flag; do
+while getopts ':m:N:n:d:b:a:l:G:D:x:w:s:o:t:e:r:i' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     N) N_NODES="${OPTARG}" ;;
+    n) N_TASKS="${OPTARG}" ;;
     d) DATASET="${OPTARG}" ;;
     b) BS="${OPTARG}" ;;
     a) ACCUM="${OPTARG}" ;;
@@ -85,7 +88,7 @@ mkdir -p ${WEIGHTS_ROOT}
 mkdir -p ${LOGS_ROOT}
 mkdir -p ${SAMPLES_ROOT}
 
-JOB_NAME="h_${N_NODES}_${DATASET}_${BS}x${ACCUM}_${G_LR}_${D_LR}_D${D_STEPS}_${MODE}_w${NUM_WORKERS}_s${SEED}"
+JOB_NAME="h_${N_NODES}_${N_TASKS}_${DATASET}_${BS}x${ACCUM}_${G_LR}_${D_LR}_D${D_STEPS}_${MODE}_w${NUM_WORKERS}_s${SEED}"
 
 
 case ${DATASET} in
@@ -132,6 +135,12 @@ case $(hostname) in
     echo "Host not recognized. Available: raven01, cobra01."
     exit 3 ;;
 esac
+
+if [ "$N_TASKS" -gt "$NGPU" ]; then
+  echo "Number of tasks per node ($N_TASKS) greater than number of GPUs ($NGPU)."
+  exit 4
+fi
+
 
 case ${MODE} in
   test)
@@ -196,7 +205,7 @@ ${JOB_ARRAY}
 #SBATCH --mem=0
 #SBATCH --nodes=${N_NODES}
 #SBATCH --ntasks-per-socket=${NTASK_SOCKET}
-#SBATCH --ntasks-per-node=${NGPU}
+#SBATCH --ntasks-per-node=${N_TASKS}
 #SBATCH --cpus-per-task=${CPUS}
 #SBATCH --threads-per-core=1
 #SBATCH --signal=USR1@300

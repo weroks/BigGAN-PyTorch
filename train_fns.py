@@ -148,7 +148,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                      z_=z_)
   # Also save interp sheets
   for i, (fix_z, fix_y) in enumerate(zip([False, False, True], [False, True, False])):
-    if i % (hvd.size() - 1) == hvd.rank():
+    if i % hvd.size() == hvd.rank():
       utils.interp_sheet(which_G,
                         num_per_sheet=16,
                         num_midpoints=8,
