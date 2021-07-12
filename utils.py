@@ -807,9 +807,8 @@ def save_weights_alternative(G, D, state_dict, weights_root, experiment_name,
               '%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
 
 # Load a model's weights, optimizer, and the state_dict
-def load_weights(G, D, state_dict, weights_root, experiment_name,
+def load_weights(G, D, state_dict, root,
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
-  root = '/'.join([weights_root, experiment_name])
   if hvd.rank() == 0:
     if name_suffix:
       print('Loading %s weights from %s...' % (name_suffix, root))
