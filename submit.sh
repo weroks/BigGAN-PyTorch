@@ -49,7 +49,7 @@ print_usage() {
  "
 }
 
-while getopts ':m:N:n:d:b:a:l:G:D:x:w:s:o:t:e:r:i' flag; do
+while getopts ':m:N:n:d:b:a:l:G:D:x:w:s:o:t:e:ri' flag; do
   case "${flag}" in
     m) MODE="${OPTARG}" ;;
     N) N_NODES="${OPTARG}" ;;

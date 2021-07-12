@@ -278,6 +278,10 @@ def prepare_parser():
     help='Optionally override the automatic experiment naming with this arg. '
          '(default: %(default)s)')
   parser.add_argument(
+    '--load_from', type=str, default='',
+    help='Load from a checkpoint from another weights folder. '
+         '(default: %(default)s)')
+  parser.add_argument(
     '--config_from_name', action='store_true', default=False,
     help='Use a hash of the experiment name instead of the full config '
          '(default: %(default)s)')
@@ -803,7 +807,7 @@ def save_weights_alternative(G, D, state_dict, weights_root, experiment_name,
               '%s/%s.pth' % (root, join_strings('_', ['G_ema', key, name_suffix])))
 
 # Load a model's weights, optimizer, and the state_dict
-def load_weights(G, D, state_dict, weights_root, experiment_name, 
+def load_weights(G, D, state_dict, weights_root, experiment_name,
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
   root = '/'.join([weights_root, experiment_name])
   if hvd.rank() == 0:
@@ -834,9 +838,8 @@ def load_weights(G, D, state_dict, weights_root, experiment_name,
       strict=strict)
 
  
-def load_weights_alternative(G, D, state_dict, weights_root, experiment_name, 
+def load_weights_alternative(G, D, state_dict, root, 
                  name_suffix=None, G_ema=None, strict=True, load_optim=True):
-  root = '/'.join([weights_root, experiment_name])
   if hvd.rank() == 0:
     if name_suffix:
       print('Loading %s weights from %s...' % (name_suffix, root))

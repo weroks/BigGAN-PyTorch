@@ -47,8 +47,8 @@ srun python train.py \
   --logs_root $LOGS_ROOT \
   --samples_root $SAMPLE_ROOT \
   --num_epochs 100 \
-  --dataset E256_hdf5 \
-  --shuffle  --num_workers 0 --batch_size 640 \
+  --dataset ecoset_cs500 \
+  --shuffle  --num_workers 0 --batch_size 176 \
   --num_G_accumulations 1 --num_D_accumulations 1 \
   --num_D_steps 2 --G_lr 4e-4 --D_lr 1.6e-3 --D_B2 0.999 --G_B2 0.999 \
   --G_attn 64 --D_attn 64 \
@@ -67,5 +67,13 @@ srun python train.py \
 ### DO NOT USE PARALLEL!!!
 
 ### RESUME:
-### if you run the same config twice and you use the --resume flag, it will load the last checkpoint
+## if you run the same config twice and you use the --resume flag, it will
+## load the last checkpoint. Optionally you can load weights from a previous
+## run without overwriting its logs and weights by using --load_from. The new
+## run will have its own logs and weights folder as specified by "experiment_name".
+##
+## E.g. substitute last line with:
+## --seed 0 --resume \
+## --load_from /ptmp/pierocor/BigGan_out/weights/BigGAN_ecoset_cs500_seed40_Gch96_Dch96_bs176_nDs2_Glr1.0e-04_Dlr4.0e-04_Gnlinplace_relu_Dnlinplace_relu_Ginitortho_Dinitortho_Gattn64_Dattn64_Gshared_hier_ema_hinge
+
 

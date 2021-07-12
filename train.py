@@ -115,14 +115,17 @@ def run(config):
 
   # If loading from a pre-trained model, load weights
   if config['resume']:
+    if config['load_from']:
+      root = config['load_from']
+    else:
+      root = '/'.join([config['weights_root'], experiment_name])
+
     if hvd.rank() == 0:
       print('Loading weights...')
-      utils.load_weights(G, D, state_dict,
-                        config['weights_root'], experiment_name, 
+      utils.load_weights(G, D, state_dict, root,
                         config['load_weights'] if config['load_weights'] else None,
                         G_ema if config['ema'] else None)
     else:
-      root = '/'.join([config['weights_root'], experiment_name])
       name_suffix = config['load_weights'] if config['load_weights'] else None
       for item in state_dict:
         state_dict[item] = torch.load('%s/%s.pth' % (root, utils.join_strings('_', ['state_dict', name_suffix])))[item]
