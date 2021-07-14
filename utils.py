@@ -555,11 +555,15 @@ def rm_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
     os.remove(filename)
     print("Rank %d - removed %s"%(hvd.rank(), filename), flush=True)
 
-def copy_data_in_mem(data_root, dataset, mem_folder="/dev/shm/", **kwargs):
+def copy_data_in_mem(config, mem_folder="/dev/shm/"):
   if hvd.local_rank() == 0:
-    filename = os.path.join(data_root, root_dict[dataset])
+    filename = os.path.join(config["data_root"], root_dict[config["dataset"]])
     copy(filename, mem_folder)
     print("Rank %d - copied %s in %s"%(hvd.rank(), filename, mem_folder), flush=True)
+
+  config["data_root"] = mem_folder
+  if hvd.rank() == 0:
+    print("config[\"data_root\"]: %s "%config["data_root"], flush=True)
 
 # Convenience function to centralize all data loaders
 def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64, 

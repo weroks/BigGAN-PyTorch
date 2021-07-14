@@ -319,7 +319,7 @@ def main():
     print(config)
 
   if config["copy_in_mem"]:
-    utils.copy_data_in_mem(**config)
+    utils.copy_data_in_mem(config)
 
   # Register the signal handler
   signal.signal(signal.SIGUSR1, signal_handler)
