@@ -211,8 +211,8 @@ ${JOB_ARRAY}
 #SBATCH --signal=USR1@300
 
 ### Debug and Analytics
-export NCCL_DEBUG=INFO
-export PYTHONFAULTHANDLER=1
+# export NCCL_DEBUG=INFO
+# export PYTHONFAULTHANDLER=1
 
 ### Modules and env variables
 source ${PROJ_ROOT}/${SRC}

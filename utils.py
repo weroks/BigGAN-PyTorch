@@ -633,6 +633,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   if hvd.rank() == 0:
     print('len(train_set) = %d' % len(train_set))
     print('len(train_sampler) = %d' % len(train_sampler))
+    print('train_set.root = %s' % train_set.root)
 
 
   loaders.append(train_loader)
