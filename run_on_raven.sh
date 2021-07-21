@@ -11,16 +11,19 @@
 ### TIME LIMIT: e.g.
 ### 1-00:00:00 -> 1 day (Maximum)
 ### 0-00:20:00 -> 20 minutes
-#SBATCH --time=1-00:00:00
+#SBATCH --time=0-01:00:00
+#SBATCH --signal=USR1@300
 
 ### NODE features:
-### No need to modify them on raven!
+### Num nodes, num tasks per node
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=4
+
+### No need to modify below on raven!
 #SBATCH --constraint="gpu"
 #SBATCH --gres=gpu:a100:4
 #SBATCH --mem=0
-#SBATCH --nodes=4
 #SBATCH --ntasks-per-socket=2
-#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=18
 #SBATCH --threads-per-core=1
 
@@ -35,9 +38,9 @@ echo "${SLURM_NODELIST}"
 
 
 DATA_ROOT="/ptmp/pierocor/datasets"  # This should work but you can use a different one
-WEIGHTS_ROOT="/ptmp/pierocor/BigGan_out/hvd/weights"  # Replace by a folder where you have writing aaccess
-LOGS_ROOT="/ptmp/pierocor/BigGan_out/hvd/logs"  # Replace by a folder where you have writing aaccess
-SAMPLE_ROOT="/ptmp/pierocor/BigGan_out/hvd/samples"  # Replace by a folder where you have writing aaccess
+WEIGHTS_ROOT="/ptmp/pierocor/hvd_out/resume/weights"  # Replace by a folder where you have writing aaccess
+LOGS_ROOT="/ptmp/pierocor/hvd_out/resume/logs"  # Replace by a folder where you have writing aaccess
+SAMPLE_ROOT="/ptmp/pierocor/hvd_out/resume/samples"  # Replace by a folder where you have writing aaccess
 
 ### Run the program:
 ### Change wathever you want and have fun!
@@ -63,7 +66,10 @@ srun python train.py \
   --ema --use_ema --ema_start 20000 \
   --test_every 1000 --save_every 1000 \
   --num_best_copies 5 --num_save_copies 2 \
-  --seed 0
+  --copy_in_mem \
+  --seed 0 --resume \
+  --load_from /ptmp/pierocor/BigGan_out/weights/BigGAN_ecoset_cs500_seed40_Gch96_Dch96_bs176_nDs2_Glr1.0e-04_Dlr4.0e-04_Gnlinplace_relu_Dnlinplace_relu_Ginitortho_Dinitortho_Gattn64_Dattn64_Gshared_hier_ema_hinge
+
 ### DO NOT USE PARALLEL!!!
 
 ### RESUME:

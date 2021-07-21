@@ -132,9 +132,10 @@ def run(config):
 
   hvd.broadcast_parameters(G.state_dict(), root_rank=0)
   hvd.broadcast_parameters(D.state_dict(), root_rank=0)
-  hvd.broadcast_parameters(G_ema.state_dict(), root_rank=0)
   hvd.broadcast_optimizer_state(G.optim, root_rank=0)
   hvd.broadcast_optimizer_state(D.optim, root_rank=0)
+  if config['ema']:
+    hvd.broadcast_parameters(G_ema.state_dict(), root_rank=0)
 
   # Prepare loggers for stats; metrics holds test metrics,
   # lmetrics holds any desired training metrics.
