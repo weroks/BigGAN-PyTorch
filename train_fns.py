@@ -172,13 +172,21 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
-  IS_mean, IS_std, FID = get_inception_metrics(sample, 
-                                               config['num_inception_images'] // hvd.size(),
-                                               num_splits=10,
-                                               prints=hvd.rank()==0)
-  # All reduce
-  IS_mean = hvd.allreduce(torch.tensor(IS_mean), 'IS_mean').item()
-  IS_std = hvd.allreduce(torch.tensor(IS_std), 'IS_std').item()
+  # Distribute work (config['num_inception_images']) across all devices
+  num_inception_images = max(config['num_inception_images'] // hvd.size(), 1)
+  # The number of splits is equally distributed, minimum 1 per device. When hvd.size > 10
+  # the overall number of splits is greater than the original 10. If needed, increase config['num_inception_images']
+  # to keep the chunk size around 5000 as in the original IS computation.
+  num_split = max(10 // hvd.size(), 1)
+  IS_scores, FID = get_inception_metrics(sample,
+                                        num_inception_images,
+                                        num_splits=num_split,
+                                        prints=hvd.rank()==0,
+                                        return_IS_scores=True)
+  # All gather
+  IS_scores = hvd.allgather(torch.tensor(IS_scores), 'IS_scores').numpy()
+  IS_mean = np.mean(IS_scores)
+  IS_std = np.std(IS_scores)
   FID = hvd.allreduce(torch.tensor(FID), 'FID').item()
 
   if hvd.rank() == 0:

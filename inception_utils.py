@@ -232,13 +232,15 @@ def torch_calculate_frechet_distance(mu1, sigma1, mu2, sigma2, eps=1e-6):
 
 
 # Calculate Inception Score mean + std given softmax'd logits and number of splits
-def calculate_inception_score(pred, num_splits=10):
+def calculate_inception_score(pred, num_splits=10, return_IS_scores=False):
   scores = []
   for index in range(num_splits):
     pred_chunk = pred[index * (pred.shape[0] // num_splits): (index + 1) * (pred.shape[0] // num_splits), :]
     kl_inception = pred_chunk * (np.log(pred_chunk) - np.log(np.expand_dims(np.mean(pred_chunk, 0), 0)))
     kl_inception = np.mean(np.sum(kl_inception, 1))
     scores.append(np.exp(kl_inception))
+  if return_IS_scores:
+    return np.mean(scores), np.std(scores), scores
   return np.mean(scores), np.std(scores)
 
 
@@ -281,13 +283,13 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
   # Load network
   net = load_inception_net(parallel)
   def get_inception_metrics(sample, num_inception_images, num_splits=10, 
-                            prints=True, use_torch=True):
+                            prints=True, use_torch=True, return_IS_scores=False):
     if prints:
       print('Gathering activations...')
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
     if prints:  
       print('Calculating Inception Score...')
-    IS_mean, IS_std = calculate_inception_score(logits.cpu().numpy(), num_splits)
+    IS_mean, IS_std, *scores = calculate_inception_score(logits.cpu().numpy(), num_splits, return_IS_scores)
     if no_fid:
       FID = 9999.0
     else:
@@ -306,5 +308,7 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
         FID = numpy_calculate_frechet_distance(mu.cpu().numpy(), sigma.cpu().numpy(), data_mu, data_sigma)
     # Delete mu, sigma, pool, logits, and labels, just in case
     del mu, sigma, pool, logits, labels
+    if return_IS_scores:
+      return scores[0], FID
     return IS_mean, IS_std, FID
   return get_inception_metrics

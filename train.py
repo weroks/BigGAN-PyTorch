@@ -259,6 +259,8 @@ def run(config):
           if hvd.rank() == 0:
             print('Switchin G to eval mode...')
           G.eval()
+          if config['ema']:
+            G_ema.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                         get_inception_metrics, experiment_name, test_log)
 
