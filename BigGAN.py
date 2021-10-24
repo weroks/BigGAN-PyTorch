@@ -128,7 +128,7 @@ class Generator(nn.Module):
     else:
       self.which_conv = functools.partial(nn.Conv2d, kernel_size=3, padding=1)
       self.which_linear = nn.Linear
-      
+
     # We use a non-spectral-normed embedding here regardless;
     # For some reason applying SN to G's embedding seems to randomly cripple G
     self.which_embedding = nn.Embedding
@@ -146,7 +146,7 @@ class Generator(nn.Module):
 
     # Prepare model
     # If not using shared embeddings, self.shared is just a passthrough
-    self.shared = (self.which_embedding(n_classes, self.shared_dim) if G_shared 
+    self.shared = (self.which_embedding(n_classes, self.shared_dim) if G_shared
                     else layers.identity())
     # First linear layer
     self.linear = self.which_linear(self.dim_z // self.num_slots,
@@ -208,13 +208,15 @@ class Generator(nn.Module):
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
     # self.j = 0
+  def decay_lr(self, epoch, factor=0.9, drop_every=40):
+    self.lr = self.lr * (factor ** ((1 + epoch) // drop_every))
 
   # Initialize
   def init_weights(self):
     self.param_count = 0
     for module in self.modules():
-      if (isinstance(module, nn.Conv2d) 
-          or isinstance(module, nn.Linear) 
+      if (isinstance(module, nn.Conv2d)
+          or isinstance(module, nn.Linear)
           or isinstance(module, nn.Embedding)):
         if self.init == 'ortho':
           init.orthogonal_(module.weight)
@@ -241,18 +243,18 @@ class Generator(nn.Module):
       ys = [torch.cat([y, item], 1) for item in zs[1:]]
     else:
       ys = [y] * len(self.blocks)
-      
+
     # First linear layer
     h = self.linear(z)
     # Reshape
     h = h.view(h.size(0), -1, self.bottom_width, self.bottom_width)
-    
+
     # Loop over blocks
     for index, blocklist in enumerate(self.blocks):
       # Second inner loop in case block has multiple layers
       for block in blocklist:
         h = block(h, ys[index])
-        
+
     # Apply batchnorm-relu-conv-tanh at output
     return torch.tanh(self.output_layer(h))
 
@@ -381,6 +383,9 @@ class Discriminator(nn.Module):
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
     # self.j = 0
 
+  def decay_lr(self, epoch, factor=0.9, drop_every=40):
+    self.lr = self.lr * (factor ** ((1 + epoch) // drop_every))
+
   # Initialize
   def init_weights(self):
     self.param_count = 0
@@ -425,7 +430,7 @@ class G_D(nn.Module):
     self.D = D
 
   def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False,
-              split_D=False):              
+              split_D=False):
     # If training G, enable grad tape
     with torch.set_grad_enabled(train_G):
       # Get Generator output given noise

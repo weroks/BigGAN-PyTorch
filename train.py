@@ -61,7 +61,7 @@ def run(config):
     config['skip_init'] = True
   config = utils.update_config_roots(config)
   device = 'cuda'
-  
+
   # Seed RNG
   utils.seed_rng(config['seed'] + hvd.rank())
 
@@ -82,17 +82,17 @@ def run(config):
   # Next, build the model
   G = model.Generator(**config).to(device)
   D = model.Discriminator(**config).to(device)
-  
+
    # If using EMA, prepare it
   if config['ema']:
     if hvd.rank() == 0:
       print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
-    G_ema = model.Generator(**{**config, 'skip_init':True, 
+    G_ema = model.Generator(**{**config, 'skip_init':True,
                                'no_optim': True}).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
   else:
     G_ema, ema = None, None
-  
+
   # FP16?
   if config['G_fp16']:
     print('Casting G to float16...')
@@ -143,9 +143,9 @@ def run(config):
     test_metrics_fname = '%s/%s_log.jsonl' % (config['logs_root'],
                                               experiment_name)
     train_metrics_fname = '%s/%s' % (config['logs_root'], experiment_name)
-    test_log = utils.MetricsLogger(test_metrics_fname, 
+    test_log = utils.MetricsLogger(test_metrics_fname,
                                   reinitialize=(not config['resume']))
-    train_log = utils.MyLogger(train_metrics_fname, 
+    train_log = utils.MyLogger(train_metrics_fname,
                               reinitialize=(not config['resume']),
                               logstyle=config['logstyle'])
     print('Inception Metrics will be saved to {}'.format(test_metrics_fname))
@@ -182,12 +182,12 @@ def run(config):
   # Prepare a fixed z & y to see individual sample evolution throghout training
   fixed_z, fixed_y = utils.prepare_z_y(G_batch_size, G.dim_z,
                                        config['n_classes'], device=device,
-                                       fp16=config['G_fp16'])  
+                                       fp16=config['G_fp16'])
   fixed_z.sample_()
   fixed_y.sample_()
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
-    train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
+    train = train_fns.GAN_training_function(G, D, GD, z_, y_,
                                             ema, state_dict, config)
   # Else, assume debugging and use the dummy train fn
   else:
@@ -232,13 +232,13 @@ def run(config):
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
         if hvd.rank() == 0:
-          train_log.log(itr=int(state_dict['itr']), 
+          train_log.log(itr=int(state_dict['itr']),
                         **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
 
       # If using my progbar, print metrics.
       if config['pbar'] == 'mine':
         if hvd.rank() == 0:
-          print(', '.join(['itr: %d' % state_dict['itr']] 
+          print(', '.join(['itr: %d' % state_dict['itr']]
                            + ['%s : %+4.3f' % (key, metrics[key])
                            for key in metrics]), end=' ', flush=True)
 
@@ -250,7 +250,7 @@ def run(config):
           G.eval()
           if config['ema']:
             G_ema.eval()
-        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+        train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                                     state_dict, config, experiment_name)
 
       # Test every specified interval
@@ -279,7 +279,7 @@ def run(config):
           if config['ema']:
             G_ema.eval()
         if (state_dict['itr'] % config['save_every']):
-          train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
+          train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
                                       state_dict, config, experiment_name)
         else:
           if hvd.rank() == 0:
@@ -297,6 +297,13 @@ def run(config):
           dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
           print('%s - Checkpoint and cleaning done.' % dt_string, flush=True)
         sys.exit(0)
+
+    # Adjust learning rate
+    if config['lr_decay']:
+        G.decay_lr(epoch=state_dict['epoch'], factor=config['lr_decay'])
+        D.decay_lr(epoch=state_dict['epoch'], factor=config['lr_decay'])
+        print('Learning rate at epoch %s is %s.' % (str(state_dict['epoch']), str(G.lr)))
+
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
